@@ -1,4 +1,4 @@
-# TSL-operator-vite-plugin
+# vite-plugin-tsl-operator
 
 ![Experimental](https://img.shields.io/badge/Experimental-true-orange)
 
@@ -8,14 +8,14 @@ For example instead of:
 
 ```js
 Fn(()=>{
-	opacity = float(1).sub(alpha.mul(color.r))
+	return float(1).sub(alpha.mul(color.r))
 })
 ```
 
 You can now write : 
 ```js
 Fn(()=>{
-	opacity = 1 - ( alpha * color.r )
+	return 1 - ( alpha * color.r )
 })
 ```
 
