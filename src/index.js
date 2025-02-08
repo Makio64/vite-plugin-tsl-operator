@@ -1,9 +1,11 @@
 import {createRequire} from 'module'
 import path from 'path'
 const require = createRequire(import.meta.url)
-const {parse} = require('@babel/parser')
-import traverse from '@babel/traverse'
-import generate from '@babel/generator'
+
+const { parse } = require('@babel/parser')
+const traverse = require('@babel/traverse').default
+const generate = require('@babel/generator').default
+
 import * as t from '@babel/types'
 
 const opMap = { '+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '%': 'mod' }
