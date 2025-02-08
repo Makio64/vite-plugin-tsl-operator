@@ -276,14 +276,14 @@ describe('TSLOperatorPlugin', () => {
   })
 
   describe('Complex Expressions & Chaining', () => {
-    // 21 FAILED : left.sub( 2 ).add( float( 5 ).div( float( 5 ) ) )
+    // 21 SUCCESS
     it('21. handles left - 2 + float(5).div(5)', () => {
       const code = `Fn(() => left - 2 + float(5).div(5))`
       const out = run(code)
       expect(out).toContain('left.sub(2).add(float(5).div(5))')
     })
 
-    // 23 FAILED : smoothstep( float( 0 ), float( 0.5 ), pos.y ).mul( .5 ).add( .5 )
+    // 23 SUCCESS
     it('23. handles smoothstep(...) * .5 + .5 => smoothstep(...).mul(.5).add(.5)', () => {
       const code = `
         Fn(() => {
@@ -295,10 +295,7 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('smoothstep(0, 0.5, pos.y).mul(.5).add(.5)')
     })
 
-    // 33 FAILED :
-    // let a = float( 1 ).sub( left.mul( right ) );
-    // let b = smoothstep( float( 0 ), float( 0.5 ), pos.y ).mul( .5 ).add( .5 );
-    // return mix( a, b, color( float( 0xff0000 ) ) );
+    // 33 SUCCESS
     it('33. handles mix(...) calls alongside chainable ops', () => {
       const code = `
         Fn(() => {
@@ -328,7 +325,7 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('left.mod(3).mod(2)')
     })
 
-    // 28 FAILED : float( 2.5 ).mul( float( 4 ) ).add( 1 )
+    // 28 SUCCESS
     it('28. handles float(2.5).mul(4) + 1 => float(2.5).mul(4).add(1)', () => {
       const code = `Fn(() => float(2.5).mul(4) + 1)`
       const out = run(code)
@@ -427,14 +424,14 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('calc().mul(2)')
     })
 
-    // 49 FAILLED : a.add( /* plus comment */b ).sub( /* minus comment */c )
+    // 49 SUCCESS
     it('49. handles expressions with comments between operators', () => {
       const code = `Fn(() => a + /* plus comment */ b - /* minus comment */ c)`
       const out = run(code)
       expect(out.trim()).toContain('a.add(/* plus comment */b).sub(/* minus comment */c)')
     })
 
-    // 52 FAILLED : didnt transformed it
+    // 52 SUCCESS
     it('52. handles arithmetic in function arguments', () => {
       const code = `Fn(() => someFunc(a + b - c))`
       const out = run(code)
