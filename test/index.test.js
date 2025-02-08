@@ -455,4 +455,19 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('"a + b should remain as is"')
     })
   })
+
+  describe('Real-World Examples', () => {
+
+    // 53 SUCCESS
+    it('53. complex real-world example', () => {
+      const code = `
+        Fn(() => {
+          position.x.addAssign( (position.z * angleX + Math.PI / 2).cos() * powerX )
+        })
+      `
+      const out = run(code)
+      console.log(out)
+      expect(out).toContain('position.x.addAssign(position.z.mul(angleX).add(Math.PI / 2).cos().mul(powerX))')
+    })
+  })
 })

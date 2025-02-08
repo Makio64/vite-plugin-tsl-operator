@@ -116,18 +116,19 @@ const transformExpression = (node, isLeftmost = true) => {
     const newNode = t.callExpression(newCallee, newArgs)
     return inheritComments(newNode, node)
   }
+	else if(t.isMemberExpression(node)){
+    const newObj = transformExpression(node.object, false)
+    const newNode = t.memberExpression(newObj, node.property, node.computed)
+    return inheritComments(newNode, node)
+  }
   else if(t.isArrowFunctionExpression(node)) {
     const newBody = transformBody(node.body)
     const newNode = t.arrowFunctionExpression(node.params, newBody, node.async)
     return inheritComments(newNode, node)
   }
-  else if(isLeftmost && t.isNumericLiteral(node)) {
-    const newNode = t.callExpression(t.identifier('float'), [node])
-    return inheritComments(newNode, node)
-  }
-  else {
-    return node
-  }
+  else if(isLeftmost && t.isNumericLiteral(node))
+    return inheritComments(t.callExpression(t.identifier('float'), [node]), node)
+  else return node
 }
 
 const transformBody = body => {
@@ -173,15 +174,19 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
               const originalBodyCode = generate(originalBodyNode, {retainLines: true}).code
               fnArg.body = transformBody(fnArg.body)
               const newBodyCode = generate(fnArg.body, {retainLines: true}).code
-              if(logs && originalBodyCode !== newBodyCode)
-                console.log(
-                  `\x1b[33m[tsl-operator-plugin]\x1b[0m ${filename}:\n` +
-                  `\x1b[31mBefore:\x1b[0m ${originalBodyCode}\n` +
-                  `\x1b[32mAfter: \x1b[0m ${newBodyCode
-                    .split('\n')
-                    .map(line => prettifyLine(line))
-                    .join('\n')}\n`
-                )
+              if(logs && originalBodyCode !== newBodyCode){
+								const orig = originalBodyCode.split('\n')
+								const nw = newBodyCode.split('\n')
+								const diff = []
+								for(let i = 0; i < Math.max(orig.length, nw.length); i++){
+									const o = orig[i]?.trim() ?? ''
+									const n = nw[i]?.trim() ?? ''
+									if(o !== n)
+										diff.push(`\x1b[31mBefore:\x1b[0m ${prettifyLine(o)}\n\x1b[32mAfter: \x1b[0m ${prettifyLine(n)}`)
+								}
+								if(diff.length)
+									console.log(`\x1b[33m[tsl-operator-plugin]\x1b[0m ${filename}:\n` + diff.join('\n'))
+							}
             }
           }
         }
