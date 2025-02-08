@@ -138,7 +138,7 @@ describe('TSLOperatorPlugin', () => {
   })
 
   describe('Verify priority', () => {
-    // 16 FAILLED : float(1).mod(2).div(3).mul(4).sub(5).add(float(6).mod(8).div(9))
+    // 16 SUCCESS
     it('16. keeps the correct precedence for 1 % 2 / 3 * 4 - 5 + 6 % 8 / 9', () => {
       const code = `
         Fn(() => {
@@ -175,7 +175,7 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('float(1).sub(Math.PI / 2)')
     })
 
-    // 20 FAILLED : float( 1 ).sub( float( 2 ).mul( float( 3 ).add( 4 ) ).div( 5 ) )
+    // 20 SUCCESS
     it('20. keeps pure numeric expressions intact', () => {
       const code = `Fn(() => 1 - 2 * (3 + 4) / 5)`
       const out = run(code)
@@ -192,7 +192,7 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('left.sub(2).add(float(5).div(5))')
     })
 
-    // 22 FAILLED : float(1).mul(-1).add(x))
+    // 22 SUCCESS
     it('22. handles unary numeric with variable => -1 + x => float(-1).add(x)', () => {
       const code = `Fn(() => -1 + x)`
       const out = run(code)
@@ -212,13 +212,7 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('smoothstep(0, 0.5, pos.y).mul(.5).add(.5)')
     })
 
-    // 24 FAILLED : didnt do any transform ??
-    // returned : 
-    // Fn(() => {
-    //   let a = 1 - left * right
-    //   let b = smoothstep(0, 0.5, pos.y) * .5 + .5
-    //   return mix(a, b, color(0xff0000))
-    // })
+    // 24 SUCCESS
     it('24. handles mix(...) calls alongside chainable ops', () => {
       const code = `
         Fn(() => {
@@ -234,7 +228,7 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('mix(a, b, color(0xff0000))')
     })
 
-    // 25 FAILLED
+    // 25 SUCCESS
     it('25. handles nested parentheses => (left + (right - 1)) * 2', () => {
       const code = `Fn(() => (left + (right - 1)) * 2)`
       const out = run(code)
