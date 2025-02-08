@@ -21,9 +21,10 @@ Fn(()=>{
 
 - [Installation](#installation)
 - [Usage](#usage)
+- [Options](#how-it-works)
 - [How-it-works](#how-it-works)
 - [Limitation](#limitation)
-- [About-TSL](#About)
+- [About-TSL](#about-tsl)
 - [License](#license)
 
 ## Installation 
@@ -42,12 +43,17 @@ import tslOperatorPlugin from 'vite-plugin-tsl-operator'
 export default defineConfig({
 	//...
   plugins: [
-		tslOperatorPlugin()
+		tslOperatorPlugin({logs:false})
 		//.. other plugins
 	]
 })
 ```
 
+## Options
+
+`logs` (`false` by default) : will log the transformations in the console
+
+<img width="593" alt="Screenshot 2025-02-08 at 12 55 26" src="https://github.com/user-attachments/assets/20861ec1-6c75-4d35-87da-61e3ed8a2ba9" />
 
 ## How it works
 
