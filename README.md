@@ -2,7 +2,7 @@
 
 ![Experimental](https://img.shields.io/badge/Experimental-true-orange)
 
-A Vite plugin to let you use `+`, `-`, `*`, `/` with TSL Node in your Threejs project making the code more consise and easy to write, re-write & read.
+A Vite plugin to let you use `+`, `-`, `*`, `/`, `%` with TSL Node in your Threejs project making the code more consise and easy to write, re-write & read.
 
 For example instead of:
 
