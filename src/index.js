@@ -28,85 +28,108 @@ const getLeftMostOperand = node => {
   return node
 }
 
+const isFloatCall = node =>
+  t.isCallExpression(node) && t.isIdentifier(node.callee, {name: 'float'})
+
+const inheritComments = (newNode, oldNode) => {
+  newNode.leadingComments = oldNode.leadingComments
+  newNode.innerComments = oldNode.innerComments
+  newNode.trailingComments = oldNode.trailingComments
+  return newNode
+}
+
 const transformExpression = (node, isLeftmost = true) => {
-  if(t.isBinaryExpression(node) && opMap[node.operator]){
+  // If already wrapped, don’t wrap again
+  if(isFloatCall(node)) return node
+
+  if(t.isBinaryExpression(node) && opMap[node.operator]) {
+    // Skip Math.* expressions
     const leftMost = getLeftMostOperand(node)
     if(t.isMemberExpression(leftMost) && t.isIdentifier(leftMost.object, {name:'Math'}))
       return node
+
+    // Flatten nested + or - in right child
     if((node.operator==='+' || node.operator==='-') &&
        t.isBinaryExpression(node.right) &&
-       (node.right.operator==='+' || node.right.operator==='-')){
+       (node.right.operator==='+' || node.right.operator==='-')) {
       const A = transformExpression(node.left, true)
       const B = transformExpression(node.right.left, true)
       const C = transformExpression(node.right.right, false)
-      if(node.operator==='+' ){
-        if(node.right.operator==='+')
-          return t.callExpression(
-            t.memberExpression(
-              t.callExpression(
-                t.memberExpression(A, t.identifier('add')),
-                [B]
-              ),
-              t.identifier('add')
-            ),
-            [C]
-          )
-        if(node.right.operator==='-')
-          return t.callExpression(
-            t.memberExpression(
-              t.callExpression(
-                t.memberExpression(A, t.identifier('add')),
-                [B]
-              ),
-              t.identifier('sub')
-            ),
-            [C]
-          )
-      }
-      else if(node.operator==='-' && node.right.operator==='+')
-        return t.callExpression(
+      let newNode
+      if(node.operator==='+') {
+        newNode = t.callExpression(
           t.memberExpression(
-            t.callExpression(
-              t.memberExpression(A, t.identifier('sub')),
-              [B]
-            ),
+            t.callExpression(t.memberExpression(A, t.identifier('add')), [B]),
+            t.identifier(node.right.operator==='+' ? 'add' : 'sub')
+          ),
+          [C]
+        )
+      }
+      else if(node.operator==='-' && node.right.operator==='+') {
+        newNode = t.callExpression(
+          t.memberExpression(
+            t.callExpression(t.memberExpression(A, t.identifier('sub')), [B]),
             t.identifier('sub')
           ),
           [C]
         )
+      }
+      return inheritComments(newNode, node)
     }
     const left = transformExpression(node.left, true)
     const right = transformExpression(node.right, false)
-    return t.callExpression(
+    const newNode = t.callExpression(
       t.memberExpression(left, t.identifier(opMap[node.operator])),
       [right]
     )
+    return inheritComments(newNode, node)
   }
-  else if(t.isUnaryExpression(node) && node.operator==='-'){
-    if(t.isNumericLiteral(node.argument))
-      return t.callExpression(t.identifier('float'), [t.numericLiteral(-node.argument.value)])
+  else if(t.isUnaryExpression(node) && node.operator==='-') {
+    if(t.isNumericLiteral(node.argument)) {
+      const newNode = t.callExpression(t.identifier('float'), [t.numericLiteral(-node.argument.value)])
+      return inheritComments(newNode, node)
+    }
     const arg = transformExpression(node.argument, true)
-    return t.callExpression(
+    const newNode = t.callExpression(
       t.memberExpression(arg, t.identifier('mul')),
       [t.unaryExpression('-', t.numericLiteral(1))]
     )
+    return inheritComments(newNode, node)
   }
-  else if(t.isParenthesizedExpression(node))
+  else if(t.isParenthesizedExpression(node)) {
     return transformExpression(node.expression, isLeftmost)
-  else if(t.isConditionalExpression(node))
-    return t.conditionalExpression(
+  }
+  else if(t.isConditionalExpression(node)) {
+    const newNode = t.conditionalExpression(
       transformExpression(node.test, false),
       transformExpression(node.consequent, true),
       transformExpression(node.alternate, true)
     )
-  else
-    return isLeftmost && t.isNumericLiteral(node)
-      ? t.callExpression(t.identifier('float'), [node])
-      : node
+    return inheritComments(newNode, node)
+  }
+  else if(t.isCallExpression(node)) {
+    // In function calls, arguments aren’t in an operator chain
+    const newCallee = transformExpression(node.callee, false)
+    const newArgs = node.arguments.map(arg => transformExpression(arg, false))
+    const newNode = t.callExpression(newCallee, newArgs)
+    return inheritComments(newNode, node)
+  }
+  else if(t.isArrowFunctionExpression(node)) {
+    const newBody = transformBody(node.body)
+    const newNode = t.arrowFunctionExpression(node.params, newBody, node.async)
+    return inheritComments(newNode, node)
+  }
+  else if(isLeftmost && t.isNumericLiteral(node)) {
+    const newNode = t.callExpression(t.identifier('float'), [node])
+    return inheritComments(newNode, node)
+  }
+  else {
+    return node
+  }
 }
 
 const transformBody = body => {
-  if(t.isBlockStatement(body)){
+  if(t.isBlockStatement(body)) {
     body.body = body.body.map(stmt => {
       if(t.isReturnStatement(stmt) && stmt.argument)
         stmt.argument = isPureNumeric(stmt.argument)
@@ -115,9 +138,11 @@ const transformBody = body => {
       else if(t.isVariableDeclaration(stmt))
         stmt.declarations.forEach(decl => {
           if(decl.init)
-            decl.init = isPureNumeric(decl.init)
-              ? decl.init
-              : transformExpression(decl.init, true)
+            decl.init = t.isArrowFunctionExpression(decl.init)
+              ? transformExpression(decl.init, true)
+              : (isPureNumeric(decl.init)
+                  ? decl.init
+                  : transformExpression(decl.init, true))
         })
       else if(t.isExpressionStatement(stmt))
         stmt.expression = isPureNumeric(stmt.expression)
@@ -139,9 +164,9 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
       const ast = parse(code, {sourceType: 'module', plugins: ['jsx']})
       traverse(ast, {
         CallExpression(path) {
-          if(t.isIdentifier(path.node.callee, {name: 'Fn'})){
+          if(t.isIdentifier(path.node.callee, {name: 'Fn'})) {
             const fnArg = path.node.arguments[0]
-            if(t.isArrowFunctionExpression(fnArg)){
+            if(t.isArrowFunctionExpression(fnArg)) {
               const originalBodyNode = t.cloneNode(fnArg.body, true)
               const originalBodyCode = generate(originalBodyNode, {retainLines: true}).code
               fnArg.body = transformBody(fnArg.body)
