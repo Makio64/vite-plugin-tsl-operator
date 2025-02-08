@@ -501,7 +501,7 @@ describe('Real-World Examples', () => {
     expect(out).toContain("return applyFog(c, vBatchTransformed)")
   })
 
-  // FAILLED : After:  const transformedNormal = normalLocal.div( vec3( bm[float( 0 )].dot( bm[float( 0 )] ), bm[float( 1 )].dot( bm[float( 1 )] ), bm[float( 2 )].dot( bm[float( 2 )] ) ) );
+  // SUCCESS
   it('54Bis1. handles complex normal transformation example', () => {
     const code = `
       Fn(() => {
@@ -512,7 +512,7 @@ describe('Real-World Examples', () => {
     expect(out).toContain("const transformedNormal = normalLocal.div(vec3(bm[0].dot(bm[0]), bm[1].dot(bm[1]), bm[2].dot(bm[2]))")
   })
 
-  // 54Bis2 FAILLED : it add a space before toVar()
+  // 54Bis2 FAILLED MINOR ISSUE : it add a space before toVar() casue the parenthese are changed from one line to the others..
   it('54Bis2. handles complex multiline matrix without redundant transforms', () => {
     const code = `
       Fn(() => {
