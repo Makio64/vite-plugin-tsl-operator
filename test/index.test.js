@@ -244,6 +244,27 @@ describe('TSLOperatorPlugin', () => {
       expect(out).not.toContain('Math.PI.div(')
     })
 
+    it('26Bis1. does not transform Math.PI * 2 alone', () => {
+      const code = `Fn(() => Math.PI * 2)`
+      const out = run(code, 'mathpi.js')
+      expect(out).toContain('Math.PI * 2')
+      expect(out).not.toContain('Math.PI.mul(')
+    })
+
+    it('26Bis2. does not transform Math.PI % 2 alone', () => {
+      const code = `Fn(() => Math.PI % 2)`
+      const out = run(code, 'mathpi.js')
+      expect(out).toContain('Math.PI % 2')
+      expect(out).not.toContain('Math.PI.mod(')
+    })
+
+    it('26Bis3. does not transform Math.PI - 2 alone', () => {
+      const code = `Fn(() => Math.PI - 2)`
+      const out = run(code, 'mathpi.js')
+      expect(out).toContain('Math.PI - 2')
+      expect(out).not.toContain('Math.PI.sub(')
+    })
+
     // 27 SUCCESS
     it('27. transforms numeric + Math.PI => float(1).add(Math.PI)', () => {
       const code = `Fn(() => 1 + Math.PI)`
@@ -257,6 +278,13 @@ describe('TSLOperatorPlugin', () => {
       const out = run(code)
       console.log(out)
       expect(out).toContain('float(1).sub(Math.PI / 2)')
+    })
+
+    it('28Bis1. mixes numeric with Math.PI => float(1).sub(Math.PI * 2)', () => {
+      const code = `Fn(() => 1 - (Math.PI * 2))`
+      const out = run(code)
+      console.log(out)
+      expect(out).toContain('float(1).sub(Math.PI * 2)')
     })
 
     // 29 SUCCESS
@@ -397,7 +425,7 @@ describe('TSLOperatorPlugin', () => {
     })
 
     // 46 SUCCESS
-    it('46. handles nested ternary operations => a ? b + c : d - e', () => {
+    it('46. handles nested ternary operations => a ? b.add(c) : d.sub(e)', () => {
       const code = `Fn(() => a ? b.add(c) : d.sub(e))`
       const out = run(code)
       console.log(out)
@@ -470,18 +498,7 @@ describe('TSLOperatorPlugin', () => {
       expect(out).toContain('position.x.addAssign(position.z.mul(angleX).add(Math.PI / 2).cos().mul(powerX))')
     })
 
-    // 54 FAILLED, return :
-    // Fn(() => {
-    //   let c = output
-    //   let outsideRange = 2.2
-    //   let margin = 1.1
-    //   let right = smoothstep(float(outsideRange).mul(-1), float(outsideRange).mul(-1).add(margin), vBatchPosition.x)
-    //   let left = smoothstep(vBatchPosition.x, vBatchPosition.x.add(margin), outsideRange)
-    //   let outside = float(1).sub(left.mul(right))
-    
-    //   c = mix(c, fogColor, clamp(outside - vBatchPosition.y / 3))
-    //   return applyFog(c, vBatchTransformed)
-    // })()
+    // 54 SUCCESS
     it('54. handles complex fog mix example', () => {
       const code = `
         Fn( ()=>{

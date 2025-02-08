@@ -24,12 +24,6 @@ const isPureNumeric = node => {
   return false
 }
 
-const getLeftMostOperand = node => {
-  while(t.isBinaryExpression(node) && opMap[node.operator])
-    node = node.left
-  return node
-}
-
 const isFloatCall = node =>
   t.isCallExpression(node) && t.isIdentifier(node.callee, {name: 'float'})
 
@@ -44,23 +38,19 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
   if(isFloatCall(node)) return node
 
   if(t.isBinaryExpression(node) && opMap[node.operator]) {
-    if(
-      node.operator==='/' &&
-      t.isMemberExpression(node.left) &&
-      t.isIdentifier(node.left.object, {name:'Math'}) &&
-      t.isIdentifier(node.left.property, {name:'PI'})
-    )
-      return node
-    const left = transformExpression(node.left, true, scope, pureVars)
-    const right = transformExpression(node.right, false, scope, pureVars)
-    return inheritComments(
-      t.callExpression(
-        t.memberExpression(left, t.identifier(opMap[node.operator])),
-        [right]
-      ),
-      node
-    )
-  }
+		// If left is a Math property, skip transforming this binary expression.
+		if(t.isMemberExpression(node.left) && t.isIdentifier(node.left.object, {name: 'Math'}))
+			return node
+		const left = transformExpression(node.left, true, scope, pureVars)
+		const right = transformExpression(node.right, false, scope, pureVars)
+		return inheritComments(
+			t.callExpression(
+				t.memberExpression(left, t.identifier(opMap[node.operator])),
+				[right]
+			),
+			node
+		)
+	}	
   else if(t.isAssignmentExpression(node)){
     const left = transformExpression(node.left, false, scope, pureVars)
     const right = transformExpression(node.right, true, scope, pureVars)
