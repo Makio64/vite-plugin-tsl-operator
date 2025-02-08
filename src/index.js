@@ -40,123 +40,152 @@ const inheritComments = (newNode, oldNode) => {
   return newNode
 }
 
-const transformExpression = (node, isLeftmost = true) => {
-  // If already wrapped, don’t wrap again
+const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set()) => {
   if(isFloatCall(node)) return node
 
   if(t.isBinaryExpression(node) && opMap[node.operator]) {
-    // Skip Math.* expressions
-    const leftMost = getLeftMostOperand(node)
-    if(t.isMemberExpression(leftMost) && t.isIdentifier(leftMost.object, {name:'Math'}))
+    if(
+      node.operator==='/' &&
+      t.isMemberExpression(node.left) &&
+      t.isIdentifier(node.left.object, {name:'Math'}) &&
+      t.isIdentifier(node.left.property, {name:'PI'})
+    )
       return node
-
-    // Flatten nested + or - in right child
-    if((node.operator==='+' || node.operator==='-') &&
-       t.isBinaryExpression(node.right) &&
-       (node.right.operator==='+' || node.right.operator==='-')) {
-      const A = transformExpression(node.left, true)
-      const B = transformExpression(node.right.left, true)
-      const C = transformExpression(node.right.right, false)
-      let newNode
-      if(node.operator==='+') {
-        newNode = t.callExpression(
-          t.memberExpression(
-            t.callExpression(t.memberExpression(A, t.identifier('add')), [B]),
-            t.identifier(node.right.operator==='+' ? 'add' : 'sub')
+    const left = transformExpression(node.left, true, scope, pureVars)
+    const right = transformExpression(node.right, false, scope, pureVars)
+    return inheritComments(
+      t.callExpression(
+        t.memberExpression(left, t.identifier(opMap[node.operator])),
+        [right]
+      ),
+      node
+    )
+  }
+  else if(t.isAssignmentExpression(node)){
+    const left = transformExpression(node.left, false, scope, pureVars)
+    const right = transformExpression(node.right, true, scope, pureVars)
+    return inheritComments(
+      t.assignmentExpression(node.operator, left, right),
+      node
+    )
+  }
+  else if(t.isUnaryExpression(node) && node.operator==='-'){
+    if(t.isNumericLiteral(node.argument))
+      return inheritComments(
+        t.callExpression(t.identifier('float'), [t.numericLiteral(-node.argument.value)]),
+        node
+      )
+    if(t.isIdentifier(node.argument)){
+      const binding = scope && scope.getBinding(node.argument.name)
+      const isPure = (binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init))
+        || (pureVars && pureVars.has(node.argument.name))
+      if(isPure){
+        const newArg = t.callExpression(t.identifier('float'), [node.argument])
+        return inheritComments(
+          t.callExpression(
+            t.memberExpression(newArg, t.identifier('mul')),
+            [t.unaryExpression('-', t.numericLiteral(1))]
           ),
-          [C]
+          node
         )
       }
-      else if(node.operator==='-' && node.right.operator==='+') {
-        newNode = t.callExpression(
-          t.memberExpression(
-            t.callExpression(t.memberExpression(A, t.identifier('sub')), [B]),
-            t.identifier('sub')
-          ),
-          [C]
-        )
-      }
-      return inheritComments(newNode, node)
     }
-    const left = transformExpression(node.left, true)
-    const right = transformExpression(node.right, false)
-    const newNode = t.callExpression(
-      t.memberExpression(left, t.identifier(opMap[node.operator])),
-      [right]
+    const arg = transformExpression(node.argument, true, scope, pureVars)
+    return inheritComments(
+      t.callExpression(
+        t.memberExpression(arg, t.identifier('mul')),
+        [t.unaryExpression('-', t.numericLiteral(1))]
+      ),
+      node
     )
-    return inheritComments(newNode, node)
   }
-  else if(t.isUnaryExpression(node) && node.operator==='-') {
-    if(t.isNumericLiteral(node.argument)) {
-      const newNode = t.callExpression(t.identifier('float'), [t.numericLiteral(-node.argument.value)])
-      return inheritComments(newNode, node)
-    }
-    const arg = transformExpression(node.argument, true)
-    const newNode = t.callExpression(
-      t.memberExpression(arg, t.identifier('mul')),
-      [t.unaryExpression('-', t.numericLiteral(1))]
-    )
-    return inheritComments(newNode, node)
-  }
-  else if(t.isParenthesizedExpression(node)) {
-    return transformExpression(node.expression, isLeftmost)
-  }
-  else if(t.isConditionalExpression(node)) {
+  else if(t.isParenthesizedExpression(node))
+    return transformExpression(node.expression, isLeftmost, scope, pureVars)
+  else if(t.isConditionalExpression(node)){
     const newNode = t.conditionalExpression(
-      transformExpression(node.test, false),
-      transformExpression(node.consequent, true),
-      transformExpression(node.alternate, true)
+      transformExpression(node.test, false, scope, pureVars),
+      transformExpression(node.consequent, true, scope, pureVars),
+      transformExpression(node.alternate, true, scope, pureVars)
     )
     return inheritComments(newNode, node)
   }
-  else if(t.isCallExpression(node)) {
-    // In function calls, arguments aren’t in an operator chain
-    const newCallee = transformExpression(node.callee, false)
-    const newArgs = node.arguments.map(arg => transformExpression(arg, false))
-    const newNode = t.callExpression(newCallee, newArgs)
-    return inheritComments(newNode, node)
+  else if(t.isCallExpression(node)){
+    const newCallee = transformExpression(node.callee, false, scope, pureVars)
+    const newArgs = node.arguments.map(arg => transformExpression(arg, false, scope, pureVars))
+    return inheritComments(
+      t.callExpression(newCallee, newArgs),
+      node
+    )
   }
-	else if(t.isMemberExpression(node)){
-    const newObj = transformExpression(node.object, false)
-    const newNode = t.memberExpression(newObj, node.property, node.computed)
-    return inheritComments(newNode, node)
+  else if(t.isMemberExpression(node)){
+    if(t.isIdentifier(node.object, {name:'Math'}))
+      return node
+    const newObj = transformExpression(node.object, false, scope, pureVars)
+    return inheritComments(
+      t.memberExpression(newObj, node.property, node.computed),
+      node
+    )
   }
-  else if(t.isArrowFunctionExpression(node)) {
-    const newBody = transformBody(node.body)
-    const newNode = t.arrowFunctionExpression(node.params, newBody, node.async)
-    return inheritComments(newNode, node)
+  else if(t.isArrowFunctionExpression(node)){
+    const newBody = transformBody(node.body, scope, pureVars)
+    return inheritComments(
+      t.arrowFunctionExpression(node.params, newBody, node.async),
+      node
+    )
   }
   else if(isLeftmost && t.isNumericLiteral(node))
-    return inheritComments(t.callExpression(t.identifier('float'), [node]), node)
+    return inheritComments(
+      t.callExpression(t.identifier('float'), [node]),
+      node
+    )
+  else if(isLeftmost && t.isIdentifier(node) && node.name !== 'Math'){
+    const binding = scope && scope.getBinding(node.name)
+    if((binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init))
+       || (pureVars && pureVars.has(node.name)))
+      return inheritComments(t.callExpression(t.identifier('float'), [node]), node)
+    return node
+  }
   else return node
 }
 
-const transformBody = body => {
-  if(t.isBlockStatement(body)) {
+
+const transformBody = (body, scope, pureVars = new Set()) => {
+  if(t.isBlockStatement(body)){
+    const localPure = new Set(pureVars)
+    body.body.forEach(stmt => {
+      if(t.isVariableDeclaration(stmt))
+        stmt.declarations.forEach(decl => {
+          if(t.isIdentifier(decl.id) && decl.init && isPureNumeric(decl.init))
+            localPure.add(decl.id.name)
+        })
+    })
     body.body = body.body.map(stmt => {
       if(t.isReturnStatement(stmt) && stmt.argument)
         stmt.argument = isPureNumeric(stmt.argument)
           ? stmt.argument
-          : transformExpression(stmt.argument, true)
+          : transformExpression(stmt.argument, true, scope, localPure)
       else if(t.isVariableDeclaration(stmt))
         stmt.declarations.forEach(decl => {
           if(decl.init)
             decl.init = t.isArrowFunctionExpression(decl.init)
-              ? transformExpression(decl.init, true)
+              ? transformExpression(decl.init, true, scope, localPure)
               : (isPureNumeric(decl.init)
                   ? decl.init
-                  : transformExpression(decl.init, true))
+                  : transformExpression(decl.init, true, scope, localPure))
         })
       else if(t.isExpressionStatement(stmt))
         stmt.expression = isPureNumeric(stmt.expression)
           ? stmt.expression
-          : transformExpression(stmt.expression, true)
+          : transformExpression(stmt.expression, true, scope, localPure)
       return stmt
     })
     return body
   }
-  return isPureNumeric(body) ? body : transformExpression(body, true)
+  return isPureNumeric(body)
+    ? body
+    : transformExpression(body, true, scope, pureVars)
 }
+
 
 export default function TSLOperatorPlugin({logs = true} = {}) {
   return {
@@ -169,12 +198,12 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
         CallExpression(path) {
           if(t.isIdentifier(path.node.callee, {name: 'Fn'})) {
             const fnArg = path.node.arguments[0]
-            if(t.isArrowFunctionExpression(fnArg)) {
-              const originalBodyNode = t.cloneNode(fnArg.body, true)
-              const originalBodyCode = generate(originalBodyNode, {retainLines: true}).code
-              fnArg.body = transformBody(fnArg.body)
-              const newBodyCode = generate(fnArg.body, {retainLines: true}).code
-              if(logs && originalBodyCode !== newBodyCode){
+						if(t.isArrowFunctionExpression(fnArg)) {
+							const originalBodyNode = t.cloneNode(fnArg.body, true)
+							const originalBodyCode = generate(originalBodyNode, {retainLines: true}).code
+							fnArg.body = transformBody(fnArg.body, path.scope)
+							const newBodyCode = generate(fnArg.body, {retainLines: true}).code
+							if(logs && originalBodyCode !== newBodyCode){
 								const orig = originalBodyCode.split('\n')
 								const nw = newBodyCode.split('\n')
 								const diff = []

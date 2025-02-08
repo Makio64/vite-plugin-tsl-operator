@@ -157,14 +157,14 @@ describe('TSLOperatorPlugin', () => {
       const code = `Fn(() => (left + (right - 1)) * 2)`
       const out = run(code)
       console.log(out)
-      expect(out).toContain('left.add(right).sub(1).mul(2))')
+      expect(out).toContain('left.add(right.sub(1)).mul(2)')
     })
 
     // 18 SUCCESS
     it('18 handles nested parentheses', () => {
       const code = `Fn(() => (a + (b - c)) * d)`
       const out = run(code)
-      expect(out).toContain('a.add(b).sub(c).mul(d)')
+      expect(out).toContain('a.add(b.sub(c)).mul(d)')
     })
 
     // 19 SUCCESS
@@ -469,5 +469,41 @@ describe('TSLOperatorPlugin', () => {
       console.log(out)
       expect(out).toContain('position.x.addAssign(position.z.mul(angleX).add(Math.PI / 2).cos().mul(powerX))')
     })
+
+    // 54 FAILLED, return :
+    // Fn(() => {
+    //   let c = output
+    //   let outsideRange = 2.2
+    //   let margin = 1.1
+    //   let right = smoothstep(float(outsideRange).mul(-1), float(outsideRange).mul(-1).add(margin), vBatchPosition.x)
+    //   let left = smoothstep(vBatchPosition.x, vBatchPosition.x.add(margin), outsideRange)
+    //   let outside = float(1).sub(left.mul(right))
+    
+    //   c = mix(c, fogColor, clamp(outside - vBatchPosition.y / 3))
+    //   return applyFog(c, vBatchTransformed)
+    // })()
+    it('54. handles complex fog mix example', () => {
+      const code = `
+        Fn( ()=>{
+          let c = output
+          let outsideRange = 2.2
+          let margin = 1.1
+          let right = smoothstep( -outsideRange, -outsideRange + margin, vBatchPosition.x )
+          let left = smoothstep( vBatchPosition.x, vBatchPosition.x + margin, outsideRange )
+          let outside = 1 - left * right
+    
+          c = mix( c, fogColor, clamp( outside - vBatchPosition.y / 3 ) )
+          return applyFog( c, vBatchTransformed )
+        } )()
+      `
+      const out = run(code)
+      console.log(out)
+      expect(out).toContain("let outsideRange = 2.2")
+      expect(out).toContain("smoothstep(float(outsideRange).mul(-1), float(outsideRange).mul(-1).add(margin), vBatchPosition.x)")
+      expect(out).toContain("let outside = float(1).sub(left.mul(right))")
+      expect(out).toContain("c = mix(c, fogColor, clamp(outside.sub(vBatchPosition.y.div(3))))")
+      expect(out).toContain("return applyFog(c, vBatchTransformed)")
+    })    
+        
   })
 })
