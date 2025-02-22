@@ -20,11 +20,11 @@
   "author": "David Ronai | Makio64",
   "license": "MIT",
   "devDependencies": {
-    "vitest": "^0.34.0",
-    "@babel/parser": "^7.22.9",
-    "@babel/traverse": "^7.22.9",
-    "@babel/generator": "^7.22.9",
-    "@babel/types": "^7.22.9"
+    "vitest": "^3.0.6",
+    "@babel/parser": "^7.26.9",
+    "@babel/traverse": "^7.26.9",
+    "@babel/generator": "^7.26.9",
+    "@babel/types": "^7.26.9"
   },
-  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
+  "packageManager": "pnpm@10.4.1"
 }
