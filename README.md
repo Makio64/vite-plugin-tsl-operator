@@ -74,6 +74,8 @@ Fn(()=>{
 })
 ```
 
+PS : It doesn't convert inside `node_modules`
+
 ## About TSL
 
 Official wiki : [Three.js-Shading-Language](https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language)

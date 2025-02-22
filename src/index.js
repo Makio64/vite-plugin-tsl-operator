@@ -230,7 +230,7 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
   return {
     name: 'tsl-operator-plugin',
     transform(code, id) {
-      if(!/\.(js|ts)x?$/.test(id)) return null
+      if(!/\.(js|ts)x?$/.test(id) || id.includes('node_modules')) return null
       const filename = path.basename(id)
       const ast = parse(code, {sourceType: 'module', plugins: ['jsx']})
       traverse(ast, {
@@ -242,7 +242,6 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
 							const originalBodyCode = generate(originalBodyNode, {retainLines: true}).code
 							fnArgPath.node.body = transformBody(fnArgPath.node.body, fnArgPath.scope)
 							const newBodyCode = generate(fnArgPath.node.body, {retainLines: true}).code
-				
 							// Normalize both versions to ignore formatting differences
 							const normOrig = originalBodyCode.replace(/\s+/g, ' ').trim()
 							const normNew = newBodyCode.replace(/\s+/g, ' ').trim()
@@ -262,7 +261,7 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
 							fnArgPath.node._tslTransformed = true
 						}
 					}
-				}				
+				}
       })
       const output = generate(ast, {retainLines: true}, code)
       const generatedCode = output.code.replace(/;(\n|$)/g, '$1')
