@@ -59,6 +59,30 @@ const transformPattern = (node, scope, pureVars) => {
 
 const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set()) => {
   if(isFloatCall(node)) return node
+  if (
+    t.isBinaryExpression(node) &&
+    node.operator === '%' &&
+    t.isBinaryExpression(node.left) &&
+    node.left.operator === '*'
+  ) {
+    const leftExpr  = transformExpression(node.left.left,  true,  scope, pureVars)
+    const modTarget = transformExpression(node.left.right, true,  scope, pureVars)
+    const modArg    = transformExpression(node.right,      false, scope, pureVars)
+    const modCall = inheritComments(
+      t.callExpression(
+        t.memberExpression(modTarget, t.identifier(opMap['%'])),
+        [modArg]
+      ),
+      node.left
+    )
+    return inheritComments(
+      t.callExpression(
+        t.memberExpression(leftExpr, t.identifier(opMap['*'])),
+        [modCall]
+      ),
+      node
+    )
+  }
 
   if(t.isBinaryExpression(node) && opMap[node.operator]) {
     // Do not transform binary ops if left is Math.xxx
