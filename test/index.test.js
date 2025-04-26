@@ -645,4 +645,180 @@ describe('TSLOperatorPlugin Edge Cases', () => {
     expect(out).toContain('a.mul(-1).mul(-1).add(b.sub(c).mul(-1))')
   })
 
+  it('67. transforms (a + b) * c % d => a.add(b).mul(c.mod(d))', () => {
+    const code = `Fn(() => (a + b) * c % d)`
+    const out = run(code)
+    expect(out).toContain('a.add(b).mul(c.mod(d))')
+  })
+  
+  it('68. handles a * b * c % d => a.mul(b).mul(c.mod(d))', () => {
+    const code = `Fn(() => a * b * c % d)`
+    const out = run(code)
+    expect(out).toContain('a.mul(b).mul(c.mod(d))')
+  })
+  
+  it('69. handles unary minus before `%`: -a % b => a.mul(-1).mod(b)', () => {
+    const code = `Fn(() => -a % b)`
+    const out = run(code)
+    expect(out).toContain('a.mul(-1).mod(b)')
+  })
+  
+  it('70. leaves `%` in default params untouched', () => {
+    const code = `const f = (x = a % b) => x; Fn(() => f())`
+    const out = run(code)
+    expect(out).toContain('x = a % b')
+  })
+  
+  it('71. transforms inside template literals', () => {
+    const code = 'Fn(() => `r=${x % y}`)'
+    const out = run(code)
+    expect(out).toContain('`r=${x.mod(y)}`')
+  })
+
+  // 72. handles a % b * c => a.mod(b).mul(c)
+it('72. transforms a % b * c => a.mod(b).mul(c)', () => {
+  const code = `Fn(() => a % b * c)`
+  const out = run(code)
+  expect(out).toContain('a.mod(b).mul(c)')
+})
+
+// 73. transforms (a + b) * c % d => a.add(b).mul(c.mod(d))
+it('73. transforms (a + b) * c % d => a.add(b).mul(c.mod(d))', () => {
+  const code = `Fn(() => (a + b) * c % d)`
+  const out = run(code)
+  expect(out).toContain('a.add(b).mul(c.mod(d))')
+})
+
+// 74. transforms a * (b + c) % (d - e) => a.mul(b.add(c).mod(d.sub(e)))
+it('74. transforms a * (b + c) % (d - e) => a.mul(b.add(c).mod(d.sub(e)))', () => {
+  const code = `Fn(() => a * (b + c) % (d - e))`
+  const out = run(code)
+  expect(out).toContain('a.mul(b.add(c).mod(d.sub(e)))')
+})
+
+// 75. transforms 3 * x % 5 => float(3).mul(x.mod(5))
+it('75. transforms 3 * x % 5 => float(3).mul(x.mod(5))', () => {
+  const code = `Fn(() => 3 * x % 5)`
+  const out = run(code)
+  expect(out).toContain('float(3).mul(x.mod(5))')
+})
+
+// 76. handles chaining a % b * c % d => a.mod(b).mul(c).mod(d)
+it('76. transforms a % b * c % d => a.mod(b).mul(c).mod(d)', () => {
+  const code = `Fn(() => a % b * c % d)`
+  const out = run(code)
+  expect(out).toContain('a.mod(b).mul(c).mod(d)')
+})
+
+// 77. transforms computed prop {[a * b % c]: d} => {[a.mul(b.mod(c))]: d}
+it('77. transforms computed prop {[a * b % c]: d} => {[a.mul(b.mod(c))]: d}', () => {
+  const code = `Fn(() => { const o = { [a * b % c]: d }; return o })`
+  const out = run(code)
+  expect(out).toContain('[a.mul(b.mod(c))]')
+})
+
+// 78. transforms in array elements [a * b % c, e] => [a.mul(b.mod(c)), e]
+it('78. transforms in array [a * b % c, e] => [a.mul(b.mod(c)), e]', () => {
+  const code = `Fn(() => [a * b % c, e])`
+  const out = run(code)
+  expect(out).toContain('a.mul(b.mod(c))')
+})
+
+// 79. handles unary before modulo in args: foo(a * b % c, -d % e)
+it('79. transforms foo(a * b % c, -d % e) => foo(a.mul(b.mod(c)), d.mul(-1).mod(e))', () => {
+  const code = `Fn(() => foo(a * b % c, -d % e))`
+  const out = run(code)
+  expect(out).toContain('foo(a.mul(b.mod(c)), d.mul(-1).mod(e))')
+})
+
+// 80. nested arrow with modulo: const inner = () => x * y % z
+it('80. transforms nested arrow inner = () => x * y % z => inner = () => x.mul(y.mod(z))', () => {
+  const code = `
+    Fn(() => {
+      const inner = () => x * y % z
+      return inner()
+    })
+  `
+  const out = run(code)
+  expect(out).toContain('const inner = () => x.mul(y.mod(z))')
+})
+
+describe('Advanced Complex Use Cases', () => {
+  it('81. handles deeply nested mixed operations', () => {
+    const code = `Fn(() => {
+      const x = (((a + b * c) % (d - e)) * f / (g + h)) + (i % (j * k)) - (-l + m * (n % o))
+      return x
+    })`
+    const out = run(code)
+    expect(out).toContain(
+      'a.add(b.mul(c)).mod(d.sub(e)).mul(f).div(g.add(h)).add(i.mod(j.mul(k))).sub(l.mul(-1).add(m.mul(n.mod(o))))'
+    )
+  })
+
+  it('82. transforms foo((a + b) * (c % d)) => foo(a.add(b).mul(c.mod(d)))', () => {
+    const code = `Fn(() => foo((a + b) * (c % d)))`
+    const out = run(code)
+    expect(out).toContain('foo(a.add(b).mul(c.mod(d)))')
+  })
+
+  it('83. handles nested arrow function with modulo chain', () => {
+    const code = `
+      Fn(() => {
+        const inner = (x) => x % m * n + o
+        return inner(p)
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('const inner = (x) => x.mod(m).mul(n).add(o)')
+    expect(out).toContain('return inner(p)')
+  })
+
+  it('84. transforms complex template literal with arithmetic', () => {
+    const code = 'Fn(() => `Result: ${((a - b) * c) % d}`)'
+    const out = run(code)
+    expect(out).toContain('`Result: ${a.sub(b).mul(c.mod(d))}`')
+  })
+
+  it('85. handles unary minus and nested modulo correctly', () => {
+    const code = `Fn(() => -((x % y) * z))`
+    const out = run(code)
+    expect(out).toContain('x.mod(y).mul(z).mul(-1)')
+  })
+})
+
+it('86. handles arithmetic in destructuring default, computed props, and nested ternary', () => {
+  const code = `Fn(() => {
+    const { a = b + c } = obj
+    const o = { [d * e % f]: g }
+    return h ? i - j * k % l : m + n
+  })`
+  const out = run(code)
+  expect(out).toContain('a = b.add(c)')
+  expect(out).toContain('[d.mul(e.mod(f))]')
+  expect(out).toContain('h ? i.sub(j.mul(k.mod(l))) : m.add(n)')
+})
+
+it('87. transforms (a + b).toVar() => a.add(b).toVar()', () => {
+  const code = `Fn(() => (a + b).toVar())`
+  const out = run(code)
+  expect(out).toContain('a.add(b).toVar()')
+})
+
+it('88. transforms (a - b).toConst() => a.sub(b).toConst()', () => {
+  const code = `Fn(() => (a - b).toConst())`
+  const out = run(code)
+  expect(out).toContain('a.sub(b).toConst()')
+})
+
+it('89. transforms uniform(vec2(1 + 2)) => uniform(vec2(float(1).add(2)))', () => {
+  const code = `Fn(() => uniform(vec2(1 + 2)))`
+  const out = run(code)
+  expect(out).toContain('uniform(vec2(float(1).add(2)))')
+})
+
+it('90. transforms array(vec2(3 + 4), vec2(5 % 2)) => array(vec2(float(3).add(4)), vec2(5.mod(2)))', () => {
+  const code = `Fn(() => array(vec2(3 + 4), vec2(5 % 2)))`
+  const out = run(code)
+  expect(out).toContain('array(vec2(float(3).add(4)), vec2(float(5).mod(2)))')
+})
 })

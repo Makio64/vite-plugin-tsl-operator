@@ -59,15 +59,17 @@ const transformPattern = (node, scope, pureVars) => {
 
 const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set()) => {
   if(isFloatCall(node)) return node
+  // handle (x * y) % z only when x isn't already a % expression
   if (
     t.isBinaryExpression(node) &&
     node.operator === '%' &&
     t.isBinaryExpression(node.left) &&
-    node.left.operator === '*'
+    node.left.operator === '*' &&
+    !(t.isBinaryExpression(node.left.left) && node.left.left.operator === '%')
   ) {
-    const leftExpr  = transformExpression(node.left.left,  true,  scope, pureVars)
-    const modTarget = transformExpression(node.left.right, true,  scope, pureVars)
-    const modArg    = transformExpression(node.right,      false, scope, pureVars)
+    const leftExpr = transformExpression(node.left.left, true, scope, pureVars)
+    const modTarget = transformExpression(node.left.right, true, scope, pureVars)
+    const modArg = transformExpression(node.right, false, scope, pureVars)
     const modCall = inheritComments(
       t.callExpression(
         t.memberExpression(modTarget, t.identifier(opMap['%'])),
