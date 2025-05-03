@@ -822,3 +822,40 @@ it('90. transforms array(vec2(3 + 4), vec2(5 % 2)) => array(vec2(float(3).add(4)
   expect(out).toContain('array(vec2(float(3).add(4)), vec2(float(5).mod(2)))')
 })
 })
+
+describe('Compound Assignment Operators', () => {
+  // +=
+  it('transforms x += y => x.addAssign(y)', () => {
+    const out = run(`Fn(() => { let x = a; x += b; return x })`)
+    expect(out).toContain('x.addAssign(b)')
+    expect(out).not.toContain('+= b')
+  })
+
+  // -=
+  it('transforms x -= y => x.subAssign(y)', () => {
+    const out = run(`Fn(() => { let x = a; x -= b; return x })`)
+    expect(out).toContain('x.subAssign(b)')
+    expect(out).not.toContain('-= b')
+  })
+
+  // *=
+  it('transforms x *= y => x.mulAssign(y)', () => {
+    const out = run(`Fn(() => { let x = a; x *= b; return x })`)
+    expect(out).toContain('x.mulAssign(b)')
+    expect(out).not.toContain('*= b')
+  })
+
+  // /=
+  it('transforms x /= y => x.divAssign(y)', () => {
+    const out = run(`Fn(() => { let x = a; x /= b; return x })`)
+    expect(out).toContain('x.divAssign(b)')
+    expect(out).not.toContain('/= b')
+  })
+
+  // %=
+  it('transforms x %= y => x.modAssign(y)', () => {
+    const out = run(`Fn(() => { let x = a; x %= b; return x })`)
+    expect(out).toContain('x.modAssign(b)')
+    expect(out).not.toContain('%= b')
+  })
+})

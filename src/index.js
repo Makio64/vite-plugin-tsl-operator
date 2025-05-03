@@ -9,6 +9,10 @@ const generate = require('@babel/generator').default
 import * as t from '@babel/types'
 
 const opMap = { '+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '%': 'mod' }
+const assignOpMap = Object.fromEntries(
+  Object.entries(opMap)
+    .map(([op, fn]) => [`${op}=`, `${fn}Assign`])
+)
 
 const prettifyLine = line =>
   line.replace(/\(\s*/g, '( ').replace(/\s*\)/g, ' )')
@@ -105,11 +109,30 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
     const right = transformExpression(node.right, true, scope, pureVars)
     return t.logicalExpression(node.operator, left, right)
   }
-  if(t.isAssignmentExpression(node)){
-    const left = transformExpression(node.left, false, scope, pureVars)
-    const right = transformExpression(node.right, true, scope, pureVars)
-    return inheritComments(t.assignmentExpression(node.operator, left, right), node)
+  if (t.isAssignmentExpression(node)) {
+    const { operator, left: L, right: R } = node
+    // compound (+=, -=, *=, /=, %=)
+    if (assignOpMap[operator]) {
+      const method = assignOpMap[operator]
+      const leftExpr = transformExpression(L, false, scope, pureVars)
+      const rightExpr = transformExpression(R, true,  scope, pureVars)
+      return inheritComments(
+        t.callExpression(
+          t.memberExpression(leftExpr, t.identifier(method)),
+          [ rightExpr ]
+        ),
+        node
+      )
+    }
+    // simple =
+    const leftExpr  = transformExpression(L, false, scope, pureVars)
+    const rightExpr = transformExpression(R, true,  scope, pureVars)
+    return inheritComments(
+      t.assignmentExpression('=', leftExpr, rightExpr),
+      node
+    )
   }
+
   if(t.isUnaryExpression(node) && node.operator==='-'){
     if(t.isNumericLiteral(node.argument))
       return inheritComments(
