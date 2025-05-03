@@ -20,13 +20,13 @@
   "author": "David Ronai | Makio64",
   "license": "MIT",
   "dependencies": {
-    "@babel/parser": "^7.27.0",
-    "@babel/traverse": "^7.27.0",
-    "@babel/generator": "^7.27.0",
-    "@babel/types": "^7.27.0"
+    "@babel/parser": "^7.27.1",
+    "@babel/traverse": "^7.27.1",
+    "@babel/generator": "^7.27.1",
+    "@babel/types": "^7.27.1"
   },
   "devDependencies": {
-    "vitest": "^3.0.6"
+    "vitest": "^3.1.2"
   },
-  "packageManager": "pnpm@10.9.0"
+  "packageManager": "pnpm@10.10.0"
 }
