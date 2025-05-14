@@ -858,4 +858,211 @@ describe('Compound Assignment Operators', () => {
     expect(out).toContain('x.modAssign(b)')
     expect(out).not.toContain('%= b')
   })
+
+})
+
+
+describe('If / Else Statements', () => {
+  // 91
+  it('91. transforms arithmetic inside if block => x = a.add(b)', () => {
+    const code = `
+      Fn(() => {
+        let x = 0
+        if(flag){
+          x = a + b
+        }
+        return x
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('x = a.add(b)')
+  })
+
+  // 92
+  it('92. transforms arithmetic inside else block => x = c.sub(d)', () => {
+    const code = `
+      Fn(() => {
+        let x
+        if(cond){
+          x = a + b
+        } else {
+          x = c - d
+        }
+        return x
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('x = a.add(b)')
+    expect(out).toContain('x = c.sub(d)')
+  })
+
+  // 93
+  it('93. transforms arithmetic in all branches of nested if/else', () => {
+    const code = `
+      Fn(() => {
+        let y
+        if(a > b){
+          y = c * d
+        } else if(a < b){
+          y = e / f
+        } else {
+          y = g % h
+        }
+        return y
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('y = c.mul(d)')
+    expect(out).toContain('y = e.div(f)')
+    expect(out).toContain('y = g.mod(h)')
+  })
+
+  // 94
+  it('94. keeps relational condition intact but transforms inside', () => {
+    const code = `
+      Fn(() => {
+        if(a > b){
+          return a + b
+        }
+        return c
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('if(a > b)')
+    expect(out).toContain('return a.add(b)')
+  })
+
+  // 95
+  it('95. transforms arithmetic in ternary within if block', () => {
+    const code = `
+      Fn(() => {
+        let z = 0
+        if(flag){
+          z = a ? b + c : d - e
+        }
+        return z
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('z = a ? b.add(c) : d.sub(e)')
+  })
+})
+
+/* -------------------------------------------------------
+   TSL If / Else specific tests (continue numbering)
+   ---------------------------------------------------- */
+describe('TSL If / Else', () => {
+  // 96
+  it('96. transforms arithmetic inside If branch => x = a.add(b)', () => {
+    const code = `
+      Fn(() => {
+        let x = 0
+        If(flag, () => {
+          x = a + b
+        })
+        return x
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('x = a.add(b)')
+  })
+
+  // 97
+  it('97. transforms arithmetic inside Else branch => x = c.sub(d)', () => {
+    const code = `
+      Fn(() => {
+        let x = 0
+        If(flag, () => {
+          x = a + b
+        }).Else(() => {
+          x = c - d
+        })
+        return x
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('x = a.add(b)')
+    expect(out).toContain('x = c.sub(d)')
+  })
+
+  // 98
+  it('98. transforms arithmetic inside ElseIf branch => y = e.mul(f)', () => {
+    const code = `
+      Fn(() => {
+        let y = 0
+        If(cond1, () => {
+          y = c * d
+        }).ElseIf(cond2, () => {
+          y = e * f
+        }).Else(() => {
+          y = g % h
+        })
+        return y
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('y = c.mul(d)')
+    expect(out).toContain('y = e.mul(f)')
+    expect(out).toContain('y = g.mod(h)')
+  })
+
+  // 99
+  it('99. transforms arithmetic inside If *condition* => (a * b).greaterThan(c)', () => {
+    const code = `
+      Fn(() => {
+        If((a * b).greaterThan(c), () => {
+          return a
+        })
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('a.mul(b).greaterThan(c)')
+  })
+
+  // 100
+  it('100. transforms compound assignments inside If / Else', () => {
+    const code = `
+      Fn(() => {
+        let z = 0
+        If(useAdd, () => {
+          z += p
+        }).Else(() => {
+          z *= q
+        })
+        return z
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('z.addAssign(p)')
+    expect(out).toContain('z.mulAssign(q)')
+  })
+
+  // 101
+  it('101. idempotency: re‑running the plugin keeps TSL If code stable', () => {
+    const code = `
+      Fn(() => {
+        If(flag, () => {
+          value = a + b
+        })
+      })
+    `
+    const once = run(code)
+    const twice = run(once)
+    expect(twice).toContain('value = a.add(b)')      // still transformed
+    expect((twice.match(/a\.add\(b\)/g) || []).length).toBe(1) // not duplicated
+  })
+
+  // 102
+  it('102. transforms arithmetic in computed props inside If branch', () => {
+    const code = `
+      Fn(() => {
+        If(show, () => {
+          const obj = { [m - n]: o }
+          return obj
+        })
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('[m.sub(n)]')
+  })
 })

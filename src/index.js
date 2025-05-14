@@ -240,32 +240,53 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
 }
 
 const transformBody = (body, scope, pureVars = new Set()) => {
-  if(t.isBlockStatement(body)){
+  if (t.isBlockStatement(body)) {
     const localPure = new Set(pureVars)
     body.body.forEach(stmt => {
-      if(t.isVariableDeclaration(stmt)) {
+      // handle nested if/else
+      if (t.isIfStatement(stmt)) {
+        // transform condition
+        stmt.test = transformExpression(stmt.test, false, scope, localPure)
+        // transform consequent block
+        if (t.isBlockStatement(stmt.consequent)) {
+          stmt.consequent = transformBody(stmt.consequent, scope, localPure)
+        }
+        // transform else / else-if
+        if (stmt.alternate) {
+          if (t.isBlockStatement(stmt.alternate)) {
+            stmt.alternate = transformBody(stmt.alternate, scope, localPure)
+          } else if (t.isIfStatement(stmt.alternate)) {
+            // wrap the else-if to recurse
+            const dummy = t.blockStatement([stmt.alternate])
+            transformBody(dummy, scope, localPure)
+            stmt.alternate = dummy.body[0]
+          }
+        }
+      }
+      else if (t.isVariableDeclaration(stmt)) {
         stmt.declarations.forEach(decl => {
-          if(t.isObjectPattern(decl.id) || t.isArrayPattern(decl.id))
+          if (t.isObjectPattern(decl.id) || t.isArrayPattern(decl.id))
             decl.id = transformPattern(decl.id, scope, localPure)
-          if(decl.init)
+          if (decl.init)
             decl.init = t.isArrowFunctionExpression(decl.init)
               ? transformExpression(decl.init, true, scope, localPure)
               : (isPureNumeric(decl.init)
                   ? decl.init
                   : transformExpression(decl.init, true, scope, localPure))
         })
-      } else if(t.isReturnStatement(stmt) && stmt.argument)
+      }
+      else if (t.isReturnStatement(stmt) && stmt.argument)
         stmt.argument = isPureNumeric(stmt.argument)
           ? stmt.argument
           : transformExpression(stmt.argument, true, scope, localPure)
-      else if(t.isExpressionStatement(stmt))
+      else if (t.isExpressionStatement(stmt))
         stmt.expression = isPureNumeric(stmt.expression)
           ? stmt.expression
           : transformExpression(stmt.expression, true, scope, localPure)
-      else if(t.isForStatement(stmt)) {
-        if(stmt.init) stmt.init = transformExpression(stmt.init, true, scope, localPure)
-        if(stmt.test) stmt.test = transformExpression(stmt.test, true, scope, localPure)
-        if(stmt.update) stmt.update = transformExpression(stmt.update, true, scope, localPure)
+      else if (t.isForStatement(stmt)) {
+        if (stmt.init) stmt.init = transformExpression(stmt.init, true, scope, localPure)
+        if (stmt.test) stmt.test = transformExpression(stmt.test, true, scope, localPure)
+        if (stmt.update) stmt.update = transformExpression(stmt.update, true, scope, localPure)
       }
     })
     return body
@@ -313,7 +334,7 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
 				}
       })
       const output = generate(ast, {retainLines: true}, code)
-      const generatedCode = output.code.replace(/;(\n|$)/g, '$1')
+      const generatedCode = output.code.replace(/;(\n|$)/g, '$1').replace(/if\s*\(/g, 'if(')
       return {code: generatedCode, map: output.map}
     }
   }
