@@ -301,8 +301,15 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
     name: 'tsl-operator-plugin',
     transform(code, id) {
       if(!/\.(js|ts)x?$/.test(id) || id.includes('node_modules')) return null
+      
+      // Early return if no Fn() calls - don't parse/regenerate at all
+      if(!code.includes('Fn(')) { return null }
+      
       const filename = path.basename(id)
       const ast = parse(code, {sourceType: 'module', plugins: ['jsx']})
+      
+      let hasTransformations = false
+      
       traverse(ast, {
         CallExpression(path) {
 					if(t.isIdentifier(path.node.callee, {name: 'Fn'})) {
@@ -316,6 +323,7 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
 							const normOrig = originalBodyCode.replace(/\s+/g, ' ').trim()
 							const normNew = newBodyCode.replace(/\s+/g, ' ').trim()
 							if(logs && normOrig !== normNew){
+                hasTransformations = true
 								const orig = originalBodyCode.split('\n')
 								const nw = newBodyCode.split('\n')
 								const diff = []
@@ -333,6 +341,10 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
 					}
 				}
       })
+      
+      // Only regenerate if we actually made transformations
+      if(!hasTransformations) { return null }
+      
       const output = generate(ast, {retainLines: true}, code)
       const generatedCode = output.code.replace(/;(\n|$)/g, '$1').replace(/if\s*\(/g, 'if(')
       return {code: generatedCode, map: output.map}

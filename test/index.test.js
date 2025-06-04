@@ -3,8 +3,10 @@ import { describe, it, expect } from 'vitest'
 import TSLOperatorPlugin from '../src/index.js'
 
 // Helper to run the plugin in a shorter form
-const run = (code, filename = 'test.js') => 
-  TSLOperatorPlugin({logs:true}).transform(code, filename).code
+const run = (code, filename = 'test.js') => {
+  const result = TSLOperatorPlugin({logs:true}).transform(code, filename)
+  return result ? result.code : code
+}
 
 describe('Basic Arithmetic Operators', () => {
   describe('Operator +', () => {
