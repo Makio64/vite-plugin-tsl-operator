@@ -27,3 +27,4 @@ stats.html
 .env
 .npmrc
 CLAUDE.md
+.claude/

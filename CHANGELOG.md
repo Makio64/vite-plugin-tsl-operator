@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.3] - 2025-01-23
+- exclude unecessary file from npm
+
 ## [1.4.2] - 2025-01-23
 
 ### Fixed

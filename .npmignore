@@ -1,0 +1,30 @@
+# Development files
+test/
+.claude/
+pnpm-workspace.yaml
+pnpm-lock.yaml
+CLAUDE.md
+
+# Git
+.git/
+.gitignore
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules/
+
+# Build artifacts
+stats.html
+.env
+.npmrc
