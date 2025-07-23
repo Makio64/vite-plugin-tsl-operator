@@ -572,6 +572,27 @@ describe('TSLOperatorPlugin Edge Cases', () => {
     expect(out).toContain('`Value: ${a.add(b)}`')
   })
 
+  it('57a. does NOT transform inc in template literal string concatenation', () => {
+    const code = 'Fn(() => { const lms = mix( lmsA, lmsB, h ).toVar( `lms${inc}` ); return lms })'
+    const out = run(code)
+    expect(out).toContain('`lms${inc}`')
+    expect(out).not.toContain('float( inc )')
+  })
+
+  it('57b. does NOT transform variables in template literal concatenation with more complex case', () => {
+    const code = 'Fn(() => { const name = vec3(1,2,3).toVar(`myVar${index}`); return name })'
+    const out = run(code)
+    expect(out).toContain('`myVar${index}`')
+    expect(out).not.toContain('float( index )')
+  })
+
+  it('57c. correctly transforms arithmetic but preserves simple vars in template literals', () => {
+    const code = 'Fn(() => { const label = `result_${i}_${a + b}`; return label })'
+    const out = run(code)
+    expect(out).toContain('`result_${i}_${a.add(b)}`')
+    expect(out).not.toContain('float( i )')
+  })
+
   it('58. transforms arithmetic in array elements', () => {
     const code = `Fn(() => [a + b, a - b])`
     const out = run(code)

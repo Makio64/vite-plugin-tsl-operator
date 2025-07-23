@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-tsl-operator",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "A Vite plugin to let you use `+`, `-`, `*`, `/`, `%` with TSL Node in your Threejs project making the code more consise and easy to write, re-write & read.",
   "main": "src/index.js",
   "type": "module",
@@ -20,13 +20,13 @@
   "author": "David Ronai | Makio64",
   "license": "MIT",
   "dependencies": {
-    "@babel/parser": "^7.27.5",
-    "@babel/traverse": "^7.27.4",
-    "@babel/generator": "^7.27.5",
-    "@babel/types": "^7.27.3"
+    "@babel/parser": "^7.28.0",
+    "@babel/traverse": "^7.28.0",
+    "@babel/generator": "^7.28.0",
+    "@babel/types": "^7.28.1"
   },
   "devDependencies": {
-    "vitest": "^3.2.1"
+    "vitest": "^3.2.4"
   },
-  "packageManager": "pnpm@10.11.1"
+  "packageManager": "pnpm@10.13.1"
 }

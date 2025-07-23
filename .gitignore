@@ -26,3 +26,4 @@ pnpm-debug.log*
 stats.html
 .env
 .npmrc
+CLAUDE.md

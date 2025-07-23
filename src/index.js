@@ -222,7 +222,7 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
     return t.arrayExpression(newElements)
   }
   if(t.isTemplateLiteral(node)){
-    const newExpressions = node.expressions.map(exp => transformExpression(exp, true, scope, pureVars))
+    const newExpressions = node.expressions.map(exp => transformExpression(exp, false, scope, pureVars))
     return t.templateLiteral(node.quasis, newExpressions)
   }
   if(t.isAssignmentPattern(node))
