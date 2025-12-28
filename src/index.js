@@ -91,6 +91,8 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
   }
 
   if(t.isBinaryExpression(node) && opMap[node.operator]) {
+    // Don't transform pure numeric expressions
+    if(isPureNumeric(node)) return node
     // Do not transform binary ops if left is Math.xxx
     if(t.isMemberExpression(node.left) && t.isIdentifier(node.left.object, {name: 'Math'}))
       return node
@@ -134,11 +136,15 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
   }
 
   if(t.isUnaryExpression(node) && node.operator==='-'){
-    if(t.isNumericLiteral(node.argument))
-      return inheritComments(
-        t.callExpression(t.identifier('float'), [t.numericLiteral(-node.argument.value)]),
-        node
-      )
+    if(t.isNumericLiteral(node.argument)) {
+      // Only wrap in float() when leftmost (starting an operation chain)
+      if(isLeftmost)
+        return inheritComments(
+          t.callExpression(t.identifier('float'), [t.numericLiteral(-node.argument.value)]),
+          node
+        )
+      return node
+    }
     if(t.isIdentifier(node.argument)){
       const binding = scope && scope.getBinding(node.argument.name)
       const isPure = (binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init))

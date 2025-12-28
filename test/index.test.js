@@ -300,6 +300,41 @@ describe('Mixing with Math Constants & Functions', () => {
     expect(out).not.toContain('float(')
   })
 
+  // 29b SUCCESS
+  it('29b. keeps pure numeric expressions inside function calls intact', () => {
+    const code = `Fn(() => { const c13 = vec3(1.0 / 3.0).toConst() })`
+    const out = run(code)
+    expect(out).toContain('vec3(1.0 / 3.0)')
+    expect(out).not.toContain('float(')
+  })
+
+  // 29c SUCCESS
+  it('29c. keeps negative numeric literals inside mat3/vec3 unchanged', () => {
+    const code = `Fn(() => { const m = mat3(1.0, -0.5, 0.3, -0.2, 1.0, -0.1, 0.0, 0.5, 1.0).toConst() })`
+    const out = run(code)
+    expect(out).toContain('mat3(1.0, -0.5, 0.3, -0.2, 1.0, -0.1, 0.0, 0.5, 1.0)')
+    expect(out).not.toContain('float(')
+  })
+
+  // 29d SUCCESS
+  it('29d. keeps multiline mat3 with negative numbers unchanged', () => {
+    const code = `Fn(() => {
+	const kCONEtoLMS = mat3(
+		0.4121656120,  0.2118591070,  0.0883097947,
+		0.5362752080,  0.6807189584,  0.2818474174,
+		0.0514575653,  0.1074065790,  0.6302613616 ).toConst()
+	const kLMStoCONE = mat3(
+		4.0767245293, -1.2681437731, -0.0041119885,
+		-3.3072168827, 2.6093323231, -0.7034763098,
+		0.2307590544, -0.3411344290, 1.7068625689 ).toConst()
+    })`
+    const out = run(code)
+    expect(out).toContain('0.4121656120')
+    expect(out).toContain('-1.2681437731')
+    expect(out).toContain('-3.3072168827')
+    expect(out).not.toContain('float(')
+  })
+
   // 30 SUCCESS
   it('30 handles Math functions correctly', () => {
     const code = `Fn(() => Math.abs(a) + Math.sin(b) * sin(c) + d)`
@@ -833,16 +868,18 @@ it('88. transforms (a - b).toConst() => a.sub(b).toConst()', () => {
   expect(out).toContain('a.sub(b).toConst()')
 })
 
-it('89. transforms uniform(vec2(1 + 2)) => uniform(vec2(float(1).add(2)))', () => {
+it('89. keeps pure numeric inside uniform(vec2(1 + 2)) unchanged', () => {
   const code = `Fn(() => uniform(vec2(1 + 2)))`
   const out = run(code)
-  expect(out).toContain('uniform(vec2(float(1).add(2)))')
+  expect(out).toContain('uniform(vec2(1 + 2))')
+  expect(out).not.toContain('float(')
 })
 
-it('90. transforms array(vec2(3 + 4), vec2(5 % 2)) => array(vec2(float(3).add(4)), vec2(5.mod(2)))', () => {
+it('90. keeps pure numeric inside array(vec2(3 + 4), vec2(5 % 2)) unchanged', () => {
   const code = `Fn(() => array(vec2(3 + 4), vec2(5 % 2)))`
   const out = run(code)
-  expect(out).toContain('array(vec2(float(3).add(4)), vec2(float(5).mod(2)))')
+  expect(out).toContain('array(vec2(3 + 4), vec2(5 % 2))')
+  expect(out).not.toContain('float(')
 })
 })
 

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.4] - 2025-12-28
+
+### Fixed
+- Pure numeric expressions inside function calls are now preserved (e.g., `vec3(1.0 / 3.0)` stays as-is instead of becoming `vec3(float(1.0).div(3.0))`)
+- Negative numeric literals inside `mat3`/`vec3` calls are now preserved (e.g., `mat3(1.0, -0.5, 0.3)` stays as-is instead of wrapping negatives in `float()`)
+
+### Added
+- Test cases for pure numeric expressions in function calls
+- Test cases for multiline `mat3` with negative numbers
+
 ## [1.4.3] - 2025-01-23
 - exclude unecessary file from npm
 
