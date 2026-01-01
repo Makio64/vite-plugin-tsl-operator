@@ -335,6 +335,39 @@ describe('Mixing with Math Constants & Functions', () => {
     expect(out).not.toContain('float(')
   })
 
+  // 29e SUCCESS
+  it('29e. keeps pure numeric (x * y) % z expressions in function calls unchanged', () => {
+    const code = `Fn(() => { const a = vec3((1 * 2) % 3, 4, 5) })`
+    const out = run(code)
+    expect(out).toContain('(1 * 2) % 3')
+    expect(out).not.toContain('float(')
+  })
+
+  // 29f SUCCESS
+  it('29f. keeps numeric literals in arrays unchanged but transforms operations', () => {
+    const code = `Fn(() => { const arr = [1, 2, a + b] })`
+    const out = run(code)
+    expect(out).toContain('[1, 2, a.add(b)]')
+    expect(out).not.toContain('float(1)')
+  })
+
+  // 29g SUCCESS
+  it('29g. keeps numeric literals in objects unchanged but transforms operations', () => {
+    const code = `Fn(() => { const obj = {x: 1, y: a + b} })`
+    const out = run(code)
+    expect(out).toContain('x: 1')
+    expect(out).toContain('y: a.add(b)')
+    expect(out).not.toContain('float(1)')
+  })
+
+  // 29h SUCCESS
+  it('29h. keeps numeric literals in ternary branches unchanged', () => {
+    const code = `Fn(() => { const t = cond ? 1 : 2 })`
+    const out = run(code)
+    expect(out).toContain('cond ? 1 : 2')
+    expect(out).not.toContain('float(')
+  })
+
   // 30 SUCCESS
   it('30 handles Math functions correctly', () => {
     const code = `Fn(() => Math.abs(a) + Math.sin(b) * sin(c) + d)`

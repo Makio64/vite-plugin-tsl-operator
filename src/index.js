@@ -71,6 +71,8 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
     node.left.operator === '*' &&
     !(t.isBinaryExpression(node.left.left) && node.left.left.operator === '%')
   ) {
+    // Don't transform pure numeric expressions
+    if(isPureNumeric(node)) return node
     const leftExpr = transformExpression(node.left.left, true, scope, pureVars)
     const modTarget = transformExpression(node.left.right, true, scope, pureVars)
     const modArg = transformExpression(node.right, false, scope, pureVars)
@@ -176,8 +178,8 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
   if(t.isConditionalExpression(node)){
     const newNode = t.conditionalExpression(
       transformExpression(node.test, false, scope, pureVars),
-      transformExpression(node.consequent, true, scope, pureVars),
-      transformExpression(node.alternate, true, scope, pureVars)
+      transformExpression(node.consequent, false, scope, pureVars),
+      transformExpression(node.alternate, false, scope, pureVars)
     )
     return inheritComments(newNode, node)
   }
@@ -215,8 +217,8 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
   if(t.isObjectExpression(node)){
     const newProps = node.properties.map(prop => {
       if(t.isObjectProperty(prop)) {
-        const newKey = prop.computed ? transformExpression(prop.key, true, scope, pureVars) : prop.key
-        const newValue = transformExpression(prop.value, true, scope, pureVars)
+        const newKey = prop.computed ? transformExpression(prop.key, false, scope, pureVars) : prop.key
+        const newValue = transformExpression(prop.value, false, scope, pureVars)
         return t.objectProperty(newKey, newValue, prop.computed, prop.shorthand)
       }
       return prop
@@ -224,7 +226,7 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
     return t.objectExpression(newProps)
   }
   if(t.isArrayExpression(node)){
-    const newElements = node.elements.map(el => el ? transformExpression(el, true, scope, pureVars) : el)
+    const newElements = node.elements.map(el => el ? transformExpression(el, false, scope, pureVars) : el)
     return t.arrayExpression(newElements)
   }
   if(t.isTemplateLiteral(node)){

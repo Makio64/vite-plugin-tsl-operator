@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.5] - 2025-12-29
+
+### Fixed
+- Pure numeric `(x * y) % z` expressions in function calls are now preserved (e.g., `vec3((1 * 2) % 3)` stays unchanged)
+- Standalone numeric literals in arrays, objects, and ternary expressions are no longer wrapped in `float()` (e.g., `[1, 2, 3]` stays as-is, `cond ? 1 : 2` stays as-is)
+
+### Added
+- Test cases for numeric literals in arrays, objects, and ternary expressions
+
 ## [1.4.4] - 2025-12-28
 
 ### Fixed
