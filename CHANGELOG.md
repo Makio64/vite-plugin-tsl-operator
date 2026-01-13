@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-01-13
+
+### Added
+- **Comparison & Logical operators**: `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==`, `&&`, `||`, `!` now map to TSL methods (e.g. `a > b` → `a.greaterThan(b)`, `a && b` → `a.and(b)`).
+- **Context-aware transformation**: Operators transform only in TSL contexts (`return`, `select`, `If`/`ElseIf`, `mix`), preserving standard JS control flow (`if`, `for`).
+- **Directive control**: `//@tsl` and `//@js` comments to force or disable transformation on lines or functions.
+- Expanded test suite (102 → 216 tests).
+
+### Fixed
+- Correct transformation for `mix()` (3rd arg) and chained `.ElseIf()` calls.
+- `for`/`while` loop bodies are now properly transformed.
+
+
 ## [1.5.1] - 2026-01-13
 
 ### Fixed

@@ -2,15 +2,26 @@
 
 ![Experimental](https://img.shields.io/badge/Experimental-true-orange)
 
-A Vite plugin to let you use `+`, `-`, `*`, `/`, `%`, `+=`, `-=`, `*=`, `/=`, `%=` with TSL Node in your Threejs project making the code more consise and easy to write, modify & read.
+A Vite plugin to let you use `+`, `-`, `*`, `/`, `%`, `+=`, `-=`, `*=`, `/=`, `%=`, `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==`, `&&`, `||`, `!`  with TSL Node in your Threejs project making the code more consise and easy to write, modify & read.
 
-For example instead of:
+### Supported Operators
+
+| Category | Operators |
+|----------|-----------|
+| Arithmetic | `+`, `-`, `*`, `/`, `%` |
+| Assignment | `+=`, `-=`, `*=`, `/=`, `%=` |
+| Comparison | `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==` |
+| Logical | `&&`, `\|\|`, `!` |
+
+### Example
+
+Instead of:
 
 ```js
 Fn(()=>{
 	let x = float(1).sub(alpha.mul(color.r))
 	x = x.mul(4)
-	return x;
+	return select(visible, x, float(0))
 })
 ```
 
@@ -61,7 +72,37 @@ export default defineConfig({
 
 ## How it works
 
-It traverse your code and look for `Fn`, then transform it to methods chaining code ( as if you write TSL without this plugin ) 
+It traverse your code and look for `Fn`, then transform it to methods chaining code ( as if you write TSL without this plugin )
+
+
+
+### Directive Comments
+
+Use `//@tsl` and `//@js` comments to explicitly control transformation:
+
+```js
+// Force ALL comparisons to transform (useful for callbacks or custom functions/nodes not automatically detected)
+//@tsl
+Fn(() => {
+  // auto-detection might miss this if 'a' and 'b' are simple variables
+  customNode( a > b ) // → customNode( a.greaterThan(b) )
+})
+
+// Control specific lines
+Fn(() => {
+  //@js
+  const check = x > y  // preserved as plain JS
+
+  //@tsl
+  const flag = a > b  // → a.greaterThan(b)
+
+  return x + y  // arithmetic always transforms
+})
+```
+
+**Notes:**
+- Directive on `Fn()` line affects the entire function body
+- Directive above a line affects only that line
 
 ## Limitation
 
@@ -79,6 +120,26 @@ Fn(()=>{
 ```
 
 PS : It doesn't convert inside `node_modules`
+
+## Context-Aware Transformations
+
+The plugin automatically detects when to transform operators:
+
+- **TSL Logic**: Transforms in `return`, `select`, `mix`, `If`, and `ElseIf`.
+- **Javascript Logic**: Keeps `if`, `for`, `while` standard JS conditions (great for generating code).
+
+```js
+Fn(() => {
+  // ✅ Transformed to TSL
+  const a = select(x > 0, 1, 0) 
+  const b = mix(0, 1, y > 0.5)
+  
+  // ❌ Kept as JavaScript (Metaprogramming)
+  if( parameters.useFog ) {
+     return fog( color )
+  }
+})
+```
 
 ## About TSL
 

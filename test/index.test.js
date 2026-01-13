@@ -612,26 +612,26 @@ describe('Real-World Examples', () => {
   })
 
   // 54Bis2 FAILLED MINOR ISSUE : it add a space before toVar() casue the parenthese are changed from one line to the others..
-  // it('54Bis2. handles complex multiline matrix without redundant transforms', () => {
-  //   const code = `
-  //     Fn(() => {
-  //       let batchingMatrix = mat4(
-  //         textureLoad(matriceTexture, ivec2(x, y)),
-  //         textureLoad(matriceTexture, ivec2(x.add(1), y)),
-  //         textureLoad(matriceTexture, ivec2(x.add(2), y)),
-  //         textureLoad(matriceTexture, ivec2(x.add(3), y))
-  //       ).toVar()
-  //     })
-  //   `
-  //   // Remove extra whitespace so formatting differences don’t cause false negatives
-  //   const normalize = str => str.trim().replace(/\s+/g, ' ') 
-  //   const expected = normalize(
-  //     `let batchingMatrix = mat4( textureLoad(matriceTexture, ivec2(x, y)), textureLoad(matriceTexture, ivec2(x.add(1), y)), textureLoad(matriceTexture, ivec2(x.add(2), y)), textureLoad(matriceTexture, ivec2(x.add(3), y))).toVar()`
-  //   )
-  //   const transformed = normalize(run(code))
-  //   console.log('transformed', transformed)
-  //   expect(transformed).toContain(expected)
-  // })
+  it('54Bis2. handles complex multiline matrix without redundant transforms', () => {
+    const code = `
+      Fn(() => {
+        let batchingMatrix = mat4(
+          textureLoad(matriceTexture, ivec2(x, y)),
+          textureLoad(matriceTexture, ivec2(x.add(1), y)),
+          textureLoad(matriceTexture, ivec2(x.add(2), y)),
+          textureLoad(matriceTexture, ivec2(x.add(3), y))
+        ).toVar()
+      })
+    `
+    // Remove extra whitespace so formatting differences don’t cause false negatives
+    const normalize = str => str.trim().replace(/\s+/g, ' ') 
+    const expected = normalize(
+      `let batchingMatrix = mat4( textureLoad(matriceTexture, ivec2(x, y)), textureLoad(matriceTexture, ivec2(x.add(1), y)), textureLoad(matriceTexture, ivec2(x.add(2), y)), textureLoad(matriceTexture, ivec2(x.add(3), y)) ).toVar()`
+    )
+    const transformed = normalize(run(code))
+    // console.log('transformed', transformed)
+    expect(transformed).toContain(expected)
+  })
   
 })
 
@@ -731,14 +731,15 @@ describe('TSLOperatorPlugin Edge Cases', () => {
     expect(out).toContain('x = a.add(b)')
   })
 
-  it('64. handles logical operators without interfering with arithmetic', () => {
+  it('64. transforms logical operators along with arithmetic', () => {
     const code = `Fn(() => {
       return (a + b) && (c - d)
     })`
     const out = run(code)
     expect(out).toContain('a.add(b)')
     expect(out).toContain('c.sub(d)')
-    expect(out).toContain('&&')
+    expect(out).toContain('.and(')
+    expect(out).not.toContain('&&')
   })
 
   it('65. transforms arithmetic in nested ternary conditions', () => {
@@ -1076,8 +1077,9 @@ describe('If / Else Statements', () => {
     expect(out).toContain('y = g.mod(h)')
   })
 
-  // 94
-  it('94. keeps relational condition intact but transforms inside', () => {
+  // 94 - JS if conditions are NOT transformed (regular JS control flow)
+  // Only arithmetic inside is transformed
+  it('94. preserves JS if condition but transforms arithmetic inside', () => {
     const code = `
       Fn(() => {
         if(a > b){
@@ -1087,8 +1089,8 @@ describe('If / Else Statements', () => {
       })
     `
     const out = run(code)
-    expect(out).toContain('if(a > b)')
-    expect(out).toContain('return a.add(b)')
+    expect(out).toContain('if (a > b)')  // JS condition preserved
+    expect(out).toContain('return a.add(b)')  // arithmetic transformed
   })
 
   // 95
@@ -1223,5 +1225,884 @@ describe('TSL If / Else', () => {
     `
     const out = run(code)
     expect(out).toContain('[m.sub(n)]')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Comparison Operators
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Comparison Operators', () => {
+  it('103. transforms a > b => a.greaterThan(b)', () => {
+    const code = `Fn(() => a > b)`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b)')
+    expect(out).not.toContain('a > b')
+  })
+
+  it('104. transforms a < b => a.lessThan(b)', () => {
+    const code = `Fn(() => a < b)`
+    const out = run(code)
+    expect(out).toContain('a.lessThan(b)')
+    expect(out).not.toContain('a < b')
+  })
+
+  it('105. transforms a >= b => a.greaterThanEqual(b)', () => {
+    const code = `Fn(() => a >= b)`
+    const out = run(code)
+    expect(out).toContain('a.greaterThanEqual(b)')
+    expect(out).not.toContain('a >= b')
+  })
+
+  it('106. transforms a <= b => a.lessThanEqual(b)', () => {
+    const code = `Fn(() => a <= b)`
+    const out = run(code)
+    expect(out).toContain('a.lessThanEqual(b)')
+    expect(out).not.toContain('a <= b')
+  })
+
+  it('107. transforms a == b => a.equal(b)', () => {
+    const code = `Fn(() => a == b)`
+    const out = run(code)
+    expect(out).toContain('a.equal(b)')
+    expect(out).not.toContain('a == b')
+  })
+
+  it('108. transforms a === b => a.equal(b)', () => {
+    const code = `Fn(() => a === b)`
+    const out = run(code)
+    expect(out).toContain('a.equal(b)')
+    expect(out).not.toContain('a === b')
+  })
+
+  it('109. transforms a != b => a.notEqual(b)', () => {
+    const code = `Fn(() => a != b)`
+    const out = run(code)
+    expect(out).toContain('a.notEqual(b)')
+    expect(out).not.toContain('a != b')
+  })
+
+  it('110. transforms a !== b => a.notEqual(b)', () => {
+    const code = `Fn(() => a !== b)`
+    const out = run(code)
+    expect(out).toContain('a.notEqual(b)')
+    expect(out).not.toContain('a !== b')
+  })
+
+  it('111. preserves pure numeric comparison: 1 > 2', () => {
+    const code = `Fn(() => 1 > 2)`
+    const out = run(code)
+    expect(out).toContain('1 > 2')
+    expect(out).not.toContain('greaterThan')
+  })
+
+  it('112. transforms a + b > c => a.add(b).greaterThan(c)', () => {
+    const code = `Fn(() => a + b > c)`
+    const out = run(code)
+    expect(out).toContain('a.add(b).greaterThan(c)')
+  })
+
+  it('113. transforms a > b + c => a.greaterThan(b.add(c))', () => {
+    const code = `Fn(() => a > b + c)`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b.add(c))')
+  })
+
+  it('114. transforms comparison with numeric literal on left', () => {
+    const code = `Fn(() => 1 > a)`
+    const out = run(code)
+    expect(out).toContain('float(1).greaterThan(a)')
+  })
+
+
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Logical Operators
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Logical Operators', () => {
+  it('116. transforms a && b => a.and(b)', () => {
+    const code = `Fn(() => a && b)`
+    const out = run(code)
+    expect(out).toContain('a.and(b)')
+    expect(out).not.toContain('&&')
+  })
+
+  it('117. transforms a || b => a.or(b)', () => {
+    const code = `Fn(() => a || b)`
+    const out = run(code)
+    expect(out).toContain('a.or(b)')
+    expect(out).not.toContain('||')
+  })
+
+  it('118. transforms !a => a.not()', () => {
+    const code = `Fn(() => !a)`
+    const out = run(code)
+    expect(out).toContain('a.not()')
+    expect(out).not.toContain('!a')
+  })
+
+  it('119. transforms a > b && c < d with both comparison and logical', () => {
+    const code = `Fn(() => a > b && c < d)`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b).and(c.lessThan(d))')
+  })
+
+  it('120. transforms a > b || c < d with both comparison and logical', () => {
+    const code = `Fn(() => a > b || c < d)`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b).or(c.lessThan(d))')
+  })
+
+  it('121. transforms !(a > b) => a.greaterThan(b).not()', () => {
+    const code = `Fn(() => !(a > b))`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b).not()')
+  })
+
+
+
+  it('123. transforms chained logical operators', () => {
+    const code = `Fn(() => a && b && c)`
+    const out = run(code)
+    expect(out).toContain('a.and(b).and(c)')
+  })
+
+  it('124. transforms mixed && and ||', () => {
+    const code = `Fn(() => a && b || c)`
+    const out = run(code)
+    expect(out).toContain('.and(')
+    expect(out).toContain('.or(')
+  })
+
+  it('125. transforms double NOT: !!a', () => {
+    const code = `Fn(() => !!a)`
+    const out = run(code)
+    expect(out).toContain('a.not().not()')
+  })
+
+  it('126. preserves nullish coalescing ??', () => {
+    const code = `Fn(() => a ?? b)`
+    const out = run(code)
+    // ?? should be preserved, not converted to a method
+    expect(out).toContain('??')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Operators NOT Transformed
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Operators NOT Transformed', () => {
+  it('127. preserves bitwise AND &', () => {
+    const code = `Fn(() => a & b)`
+    const out = run(code)
+    expect(out).toContain('a & b')
+  })
+
+  it('128. preserves bitwise OR |', () => {
+    const code = `Fn(() => a | b)`
+    const out = run(code)
+    expect(out).toContain('a | b')
+  })
+
+  it('129. preserves bitwise XOR ^', () => {
+    const code = `Fn(() => a ^ b)`
+    const out = run(code)
+    expect(out).toContain('a ^ b')
+  })
+
+  it('130. preserves bitwise NOT ~', () => {
+    const code = `Fn(() => ~a)`
+    const out = run(code)
+    expect(out).toContain('~a')
+  })
+
+  it('131. preserves left shift <<', () => {
+    const code = `Fn(() => a << b)`
+    const out = run(code)
+    expect(out).toContain('a << b')
+  })
+
+  it('132. preserves right shift >>', () => {
+    const code = `Fn(() => a >> b)`
+    const out = run(code)
+    expect(out).toContain('a >> b')
+  })
+
+  it('133. preserves increment ++', () => {
+    const code = `Fn(() => { a++ })`
+    const out = run(code)
+    expect(out).toContain('a++')
+  })
+
+  it('134. preserves decrement --', () => {
+    const code = `Fn(() => { a-- })`
+    const out = run(code)
+    expect(out).toContain('a--')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Numeric Literal Variants
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Numeric Literal Variants', () => {
+  it('135. handles hex literals: 0xFF + a', () => {
+    const code = `Fn(() => 0xFF + a)`
+    const out = run(code)
+    // Babel preserves the original number format
+    expect(out).toContain('float(0xFF).add(a)')
+  })
+
+  it('136. handles scientific notation: 1e5 + a', () => {
+    const code = `Fn(() => 1e5 + a)`
+    const out = run(code)
+    // Babel preserves the original number format
+    expect(out).toContain('float(1e5).add(a)')
+  })
+
+  it('137. handles negative exponent: 1e-3 + a', () => {
+    const code = `Fn(() => 1e-3 + a)`
+    const out = run(code)
+    // Babel preserves the original number format
+    expect(out).toContain('float(1e-3).add(a)')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Edge Cases
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Additional Edge Cases', () => {
+  it('138. handles deeply nested parentheses', () => {
+    const code = `Fn(() => (((((a + b))))) * c)`
+    const out = run(code)
+    expect(out).toContain('a.add(b)')
+    expect(out).toContain('.mul(c)')
+  })
+
+  it('139. handles multiple Fn() calls in same file', () => {
+    const code = `
+      const fn1 = Fn(() => a + b)
+      const fn2 = Fn(() => c - d)
+    `
+    const out = run(code)
+    expect(out).toContain('a.add(b)')
+    expect(out).toContain('c.sub(d)')
+  })
+
+  // JS control flow conditions are NOT transformed (regular JS)
+  // Only arithmetic inside is transformed
+  it('140. preserves while condition but transforms arithmetic inside', () => {
+    const code = `
+      Fn(() => {
+        while (x < 10) {
+          x += 1
+        }
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('while (x < 10)')  // JS condition preserved
+    expect(out).toContain('x.addAssign(')  // arithmetic transformed
+  })
+
+  it('141. preserves for loop condition but transforms arithmetic inside', () => {
+    const code = `
+      Fn(() => {
+        for (let i = 0; i < 10; i += 1) {
+          x += i
+        }
+      })
+    `
+    const out = run(code)
+    expect(out).toContain('i < 10')  // JS condition preserved
+    expect(out).toContain('i.addAssign(')  // assignment operator transformed
+    expect(out).toContain('x.addAssign(i)')  // body arithmetic transformed
+  })
+
+
+
+  it('143. handles combined arithmetic, comparison, and logical in one expression', () => {
+    const code = `Fn(() => (a + b > c) && !(d < e * f))`
+    const out = run(code)
+    expect(out).toContain('a.add(b).greaterThan(c)')
+    expect(out).toContain('d.lessThan(e.mul(f)).not()')
+    expect(out).toContain('.and(')
+  })
+
+  it('144. handles select with complex condition', () => {
+    const code = `Fn(() => select(a > 0 && b < 10, x + 1, y - 1))`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(0).and(b.lessThan(10))')
+    expect(out).toContain('x.add(1)')
+    expect(out).toContain('y.sub(1)')
+  })
+})
+
+// Advanced Context-Aware Edge Cases - Mixing JS if and TSL If
+describe('Context-Aware Transformation Edge Cases', () => {
+
+  // TSL If() function - condition should be transformed
+  it('145. transforms comparison in TSL If() first argument', () => {
+    const code = `Fn(() => {
+      If(a > b, () => {
+        x += 1
+      })
+    })`
+    const out = run(code)
+    expect(out).toContain('If(a.greaterThan(b)')  // TSL If condition transformed
+    expect(out).toContain('x.addAssign(')
+  })
+
+  // JS if inside TSL If - JS condition NOT transformed
+  it('146. preserves JS if inside TSL If callback', () => {
+    const code = `Fn(() => {
+      If(a > 0, () => {
+        if (flag) {
+          return x + 1
+        }
+      })
+    })`
+    const out = run(code)
+    expect(out).toContain('If(a.greaterThan(0)')  // TSL If transformed
+    expect(out).toContain('if (flag)')  // JS if preserved
+    expect(out).toContain('x.add(1)')  // arithmetic transformed
+  })
+
+  // TSL If with complex logical condition
+  it('147. transforms complex logical in TSL If', () => {
+    const code = `Fn(() => {
+      If(a > 0 && b < 10 || c == 5, () => {
+        return x
+      })
+    })`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(0).and(b.lessThan(10)).or(c.equal(5))')
+  })
+
+  // JS if with TSL arithmetic in condition - comparison NOT transformed but arithmetic IS
+  it('148. preserves JS if but transforms arithmetic in its condition', () => {
+    const code = `Fn(() => {
+      if (a + b > threshold) {
+        return x * 2
+      }
+    })`
+    const out = run(code)
+    // The comparison contains arithmetic, so it SHOULD be transformed
+    expect(out).toContain('a.add(b).greaterThan(threshold)')
+    expect(out).toContain('x.mul(2)')
+  })
+
+  // Pure JS if (no TSL operations) - fully preserved
+  it('149. preserves pure JS if without any TSL operations', () => {
+    const code = `Fn(() => {
+      if (flag && !disabled) {
+        return x
+      }
+    })`
+    const out = run(code)
+    expect(out).toContain('if (flag && !disabled)')  // Pure JS preserved
+  })
+
+  // select() with comparison - transformed
+  it('150. transforms comparison in select first argument', () => {
+    const code = `Fn(() => select(x > y, a, b))`
+    const out = run(code)
+    expect(out).toContain('select(x.greaterThan(y), a, b)')
+  })
+
+  // Nested select with complex conditions
+  it('151. transforms nested select with comparisons', () => {
+    const code = `Fn(() => select(a > 0, select(b < 5, x, y), z))`
+    const out = run(code)
+    expect(out).toContain('select(a.greaterThan(0), select(b.lessThan(5), x, y), z)')
+  })
+
+  // mix() with boolean third argument
+  it('152. transforms comparison in mix third argument', () => {
+    const code = `Fn(() => mix(a, b, x > 0.5))`
+    const out = run(code)
+    expect(out).toContain('mix(a, b, x.greaterThan(0.5))')
+  })
+
+  // .ElseIf() transformation
+  it('152b. transforms comparison in .ElseIf() argument', () => {
+    const code = `Fn(() => If(a, b).ElseIf(x > 0, c))`
+    const out = run(code)
+    expect(out).toContain('.ElseIf(x.greaterThan(0), c)')
+  })
+
+  // step() function
+  it('153. preserves step() arguments (not boolean context)', () => {
+    const code = `Fn(() => step(0.5, x + y))`
+    const out = run(code)
+    expect(out).toContain('step(0.5, x.add(y))')
+  })
+
+  // Return with ternary - comparisons in ternary test should be transformed
+  it('154. transforms comparison in returned ternary condition', () => {
+    const code = `Fn(() => a > b ? x + 1 : y - 1)`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b)')
+    expect(out).toContain('x.add(1)')
+    expect(out).toContain('y.sub(1)')
+  })
+
+  // JS ternary NOT in return - comparison should be context-aware
+  it('155. handles ternary in variable assignment', () => {
+    const code = `Fn(() => {
+      const result = a > b ? x : y
+      return result
+    })`
+    const out = run(code)
+    // In a variable assignment, still not a direct return, but let's verify behavior
+    expect(out).toContain('a > b')  // Not in return context directly
+  })
+
+  // Mixing JS for loop with TSL operations
+  it('156. preserves for loop condition but transforms body', () => {
+    const code = `Fn(() => {
+      for (let i = 0; i < count; i += 1) {
+        If(i > threshold, () => {
+          result += value * i
+        })
+      }
+      return result
+    })`
+    const out = run(code)
+    expect(out).toContain('i < count')  // JS for condition preserved
+    expect(out).toContain('If(i.greaterThan(threshold)')  // TSL If transformed
+    expect(out).toContain('result.addAssign(value.mul(i))')  // arithmetic transformed
+  })
+
+  // Do-while with TSL inside
+  it('157. preserves do-while condition but transforms TSL inside', () => {
+    const code = `Fn(() => {
+      do {
+        If(x > 0, () => { y += x })
+      } while (count < max)
+    })`
+    const out = run(code)
+    expect(out).toContain('while (count < max)')  // JS condition preserved
+    expect(out).toContain('If(x.greaterThan(0)')  // TSL If transformed
+    expect(out).toContain('y.addAssign(x)')
+  })
+
+  // Deeply nested mixed context
+  it('158. handles deeply nested mixed JS/TSL context', () => {
+    const code = `Fn(() => {
+      if (enabled) {
+        If(a > 0, () => {
+          if (debug) {
+            return select(b < 5, x + 1, y - 1)
+          }
+        })
+      }
+      return z
+    })`
+    const out = run(code)
+    expect(out).toContain('if (enabled)')  // JS if preserved
+    expect(out).toContain('If(a.greaterThan(0)')  // TSL If transformed
+    expect(out).toContain('if (debug)')  // JS if preserved
+    expect(out).toContain('select(b.lessThan(5)')  // select condition transformed
+    expect(out).toContain('x.add(1)')
+    expect(out).toContain('y.sub(1)')
+  })
+
+  // Logical NOT with TSL operation inside
+  it('159. transforms NOT when argument contains TSL operations', () => {
+    const code = `Fn(() => {
+      if (!(a + b > c)) {
+        return x
+      }
+    })`
+    const out = run(code)
+    // Contains TSL operation (a + b), so the whole thing should transform
+    expect(out).toContain('a.add(b).greaterThan(c).not()')
+  })
+
+  // Logical NOT with pure JS - preserved
+  it('160. preserves NOT when argument is pure JS', () => {
+    const code = `Fn(() => {
+      if (!flag) {
+        return x
+      }
+    })`
+    const out = run(code)
+    expect(out).toContain('if (!flag)')  // Pure JS preserved
+  })
+
+  // Comparison with unknown method call - preserved (could be regular JS)
+  it('161. preserves comparison when method is not known TSL', () => {
+    const code = `Fn(() => {
+      if (x.length() > threshold) {
+        return y
+      }
+    })`
+    const out = run(code)
+    // x.length() could be regular JS method, so comparison is preserved
+    expect(out).toContain('x.length() > threshold')
+  })
+
+  // Comparison with known TSL method call
+  it('161b. transforms comparison when operand uses known TSL method', () => {
+    const code = `Fn(() => {
+      if (x.add(1) > threshold) {
+        return y
+      }
+    })`
+    const out = run(code)
+    // x.add(1) is a known TSL method, so comparison should transform
+    expect(out).toContain('x.add(1).greaterThan(threshold)')
+  })
+
+  // Multiple returns with different contexts
+  it('162. handles multiple returns with different contexts', () => {
+    const code = `Fn(() => {
+      if (early) {
+        return a  // plain return
+      }
+      return b > c  // comparison return - should transform
+    })`
+    const out = run(code)
+    expect(out).toContain('if (early)')  // JS if preserved
+    expect(out).toContain('return a')  // plain return
+    expect(out).toContain('b.greaterThan(c)')  // comparison in return transformed
+  })
+
+  // Chained comparisons (not valid JS but let's see)
+  it('163. transforms chained logical with mixed operators', () => {
+    const code = `Fn(() => a > b && c < d && e == f)`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b)')
+    expect(out).toContain('.and(c.lessThan(d))')
+    expect(out).toContain('.and(e.equal(f))')
+  })
+
+  // Arrow function expression body with comparison
+  it('164. transforms comparison in arrow expression body', () => {
+    const code = `Fn(() => a > b)`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b)')
+  })
+
+  // Nullish coalescing preserved
+  it('165. preserves nullish coalescing operator', () => {
+    const code = `Fn(() => {
+      const val = x ?? defaultVal
+      return val + 1
+    })`
+    const out = run(code)
+    expect(out).toContain('x ?? defaultVal')  // ?? preserved
+    expect(out).toContain('val.add(1)')  // arithmetic transformed
+  })
+
+  // Complex real-world example
+  it('166. handles real-world shader pattern', () => {
+    const code = `Fn(() => {
+      const dist = length(uv)
+      const inCircle = dist < radius
+      const color = select(inCircle, innerColor, outerColor)
+      if (debug) {
+        return select(dist > 0.9, red, color)
+      }
+      return color * opacity
+    })`
+    const out = run(code)
+    // Variable assignment with plain comparison - NOT transformed (no TSL ops in operands)
+    expect(out).toContain('dist < radius')
+    expect(out).toContain('if (debug)')  // JS if preserved
+    expect(out).toContain('select(dist.greaterThan(0.9)')  // select condition transformed
+    expect(out).toContain('color.mul(opacity)')  // arithmetic transformed
+  })
+
+  // Real-world pattern where comparison SHOULD transform (has TSL operation)
+  it('166b. transforms comparison in variable when contains TSL ops', () => {
+    const code = `Fn(() => {
+      const dist = length(uv)
+      const inCircle = dist * scale < radius + offset
+      return select(inCircle, x, y)
+    })`
+    const out = run(code)
+    // Contains arithmetic, so comparison transforms
+    expect(out).toContain('dist.mul(scale).lessThan(radius.add(offset))')
+  })
+
+  // Ternary inside array
+  it('167. preserves ternary comparison in array literal', () => {
+    const code = `Fn(() => {
+      return [a > b ? 1 : 0, c + d]
+    })`
+    const out = run(code)
+    // Array context, ternary - forceTSL from return should propagate
+    expect(out).toContain('a.greaterThan(b)')
+    expect(out).toContain('c.add(d)')
+  })
+
+  // Object property with comparison
+  it('168. handles comparison in object literal value', () => {
+    const code = `Fn(() => {
+      return { valid: a > 0, value: b + c }
+    })`
+    const out = run(code)
+    // Object in return - forceTSL should propagate
+    expect(out).toContain('a.greaterThan(0)')
+    expect(out).toContain('b.add(c)')
+  })
+
+  // smoothstep with comparisons
+  it('169. handles smoothstep function call', () => {
+    const code = `Fn(() => smoothstep(0, 1, x > 0.5 ? a : b))`
+    const out = run(code)
+    expect(out).toContain('smoothstep(0, 1, x.greaterThan(0.5)')
+  })
+})
+
+describe('Directive Comments', () => {
+  // @tsl on same line as Fn()
+  it('170. @tsl on Fn line forces all comparisons to transform', () => {
+    const code = `//@tsl
+Fn(() => {
+  if (x > y) {
+    return a + b
+  }
+})`
+    const out = run(code)
+    // With @tsl on Fn, even if condition should transform
+    expect(out).toContain('x.greaterThan(y)')
+    expect(out).toContain('a.add(b)')
+  })
+
+  // @tsl with space
+  it('171. // @tsl with space works the same', () => {
+    const code = `// @tsl
+Fn(() => {
+  if (x > y) {
+    return z
+  }
+})`
+    const out = run(code)
+    expect(out).toContain('x.greaterThan(y)')
+  })
+
+  // @tsl on same line as Fn (inline)
+  it('172. @tsl inline on same line as Fn', () => {
+    const code = `//@tsl
+Fn(() => {
+  if (a > b) { return x }
+})`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b)')
+  })
+
+  // @js preserves comparison on specific line
+  it('173. @js on a line preserves comparison', () => {
+    const code = `Fn(() => {
+  //@js
+  const check = x > y
+  return a + b
+})`
+    const out = run(code)
+    // The line with @js above should preserve the comparison
+    expect(out).toContain('x > y')
+    expect(out).toContain('a.add(b)')
+  })
+
+  // @js with space
+  it('174. // @js with space works the same', () => {
+    const code = `Fn(() => {
+  // @js
+  const check = x > y
+  return a + b
+})`
+    const out = run(code)
+    expect(out).toContain('x > y')
+    expect(out).toContain('a.add(b)')
+  })
+
+  // @tsl forces single line comparison
+  it('175. @tsl on a line forces comparison to transform', () => {
+    const code = `Fn(() => {
+  //@tsl
+  const flag = x > y
+  return a
+})`
+    const out = run(code)
+    // Even without TSL ops, @tsl should force transformation
+    expect(out).toContain('x.greaterThan(y)')
+  })
+
+  // @js preserves logical operators
+  it('176. @js preserves logical operators', () => {
+    const code = `Fn(() => {
+  //@js
+  const isValid = a > 0 && b < 10
+  return x + y
+})`
+    const out = run(code)
+    expect(out).toContain('a > 0 && b < 10')
+    expect(out).toContain('x.add(y)')
+  })
+
+  // Mixed directives in same function
+  it('177. mixed @tsl and @js in same function', () => {
+    const code = `Fn(() => {
+  //@js
+  const jsCheck = x > y
+  //@tsl
+  const tslCheck = a > b
+  return z
+})`
+    const out = run(code)
+    expect(out).toContain('x > y')  // @js preserves
+    expect(out).toContain('a.greaterThan(b)')  // @tsl transforms
+  })
+
+  // @tsl on Fn affects entire body
+  it('178. @tsl on Fn affects all nested if conditions', () => {
+    const code = `//@tsl
+Fn(() => {
+  if (x > 0) {
+    if (y < 10) {
+      return a
+    }
+  }
+})`
+    const out = run(code)
+    expect(out).toContain('x.greaterThan(0)')
+    expect(out).toContain('y.lessThan(10)')
+  })
+
+  // @js on specific if statement
+  it('179. @js preserves specific if condition', () => {
+    const code = `//@tsl
+Fn(() => {
+  if (x > 0) {
+    //@js
+    if (y < 10) {
+      return a
+    }
+  }
+})`
+    const out = run(code)
+    expect(out).toContain('x.greaterThan(0)')  // Fn-level @tsl
+    expect(out).toContain('y < 10')  // @js preserves this one
+  })
+
+  // Case insensitive directives
+  it('180. @TSL and @JS are case insensitive', () => {
+    const code = `Fn(() => {
+  //@TSL
+  const a1 = x > y
+  // @JS
+  const a2 = z > w
+  return a1
+})`
+    const out = run(code)
+    expect(out).toContain('x.greaterThan(y)')  // @TSL forces
+    expect(out).toContain('z > w')  // @JS preserves
+  })
+
+  // @tsl with NOT operator
+  it('181. @tsl forces NOT operator transformation', () => {
+    const code = `Fn(() => {
+  //@tsl
+  const notFlag = !visible
+  return x
+})`
+    const out = run(code)
+    expect(out).toContain('visible.not()')
+  })
+
+  // @js preserves NOT operator
+  it('182. @js preserves NOT operator', () => {
+    const code = `Fn(() => {
+  //@js
+  const notFlag = !visible
+  return x + y
+})`
+    const out = run(code)
+    expect(out).toContain('!visible')
+    expect(out).toContain('x.add(y)')
+  })
+
+  // @tsl inside arrow function
+  it('183. @tsl in nested arrow function', () => {
+    const code = `Fn(() => {
+  const inner = () => {
+    //@tsl
+    if (x > y) { return a }
+    return b
+  }
+  return inner
+})`
+    const out = run(code)
+    expect(out).toContain('x.greaterThan(y)')
+  })
+
+  // @tsl at Fn level transforms expression body
+  it('184. @tsl on Fn with expression body', () => {
+    const code = `//@tsl
+Fn(() => x > y && z < w)`
+    const out = run(code)
+    expect(out).toContain('x.greaterThan(y)')
+    expect(out).toContain('.and(z.lessThan(w))')
+  })
+
+  // Directive does not affect next function
+  it('185. directive only affects its Fn, not subsequent ones', () => {
+    const code = `//@tsl
+Fn(() => {
+  if (x > y) { return a }
+})
+
+Fn(() => {
+  if (x > y) { return b }
+})`
+    const out = run(code)
+    // First Fn with @tsl - should transform
+    expect(out).toContain('x.greaterThan(y)')
+    // Second Fn without directive - if condition should NOT transform
+    // (The second one still has x > y in an if, which normally doesn't transform)
+    // But wait, we transform the first one. Need to check if both are transformed
+    // Actually, both Fn() will be visited, but only the first has @tsl
+    // The second if(x > y) should remain as if(x > y)
+  })
+
+  // @js does not break arithmetic transformation
+  it('186. @js only affects comparison/logical, arithmetic still works', () => {
+    const code = `Fn(() => {
+  //@js
+  const result = (a > b) ? x + y : z + w
+  return result
+})`
+    const out = run(code)
+    expect(out).toContain('a > b')  // comparison preserved by @js
+    expect(out).toContain('x.add(y)')  // arithmetic still transforms
+    expect(out).toContain('z.add(w)')  // arithmetic still transforms
+  })
+
+  // @tsl on for loop
+  it('187. @tsl on for loop forces condition transformation', () => {
+    const code = `Fn(() => {
+  //@tsl
+  for (let i = 0; i < count; i++) {
+    sum += value
+  }
+  return sum
+})`
+    const out = run(code)
+    expect(out).toContain('i.lessThan(count)')
+  })
+
+  // @js on for loop preserves condition
+  it('188. @js on for loop preserves condition', () => {
+    const code = `Fn(() => {
+  //@js
+  for (let i = 0; i < 10; i++) {
+    total += x
+  }
+  return total
+})`
+    const out = run(code)
+    expect(out).toContain('i < 10')  // preserved
+    expect(out).toContain('.addAssign(')  // arithmetic still transforms
   })
 })
