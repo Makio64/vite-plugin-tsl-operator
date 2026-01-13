@@ -8,6 +8,11 @@ const run = (code, filename = 'test.js') => {
   return result ? result.code : code
 }
 
+// Helper to check if transformation occurred (returns raw result)
+const runRaw = (code, filename = 'test.js') => {
+  return TSLOperatorPlugin({logs:false}).transform(code, filename)
+}
+
 describe('Basic Arithmetic Operators', () => {
   describe('Operator +', () => {
     // 1 SUCCESS
@@ -913,6 +918,54 @@ it('90. keeps pure numeric inside array(vec2(3 + 4), vec2(5 % 2)) unchanged', ()
   const out = run(code)
   expect(out).toContain('array(vec2(3 + 4), vec2(5 % 2))')
   expect(out).not.toContain('float(')
+})
+
+it('91. returns null (no transformation/logs) for multiline arrays without operators', () => {
+  const code = `Fn(() => {
+    const fogColor = gradient(
+      [blendedBottom, blendedHorizon, blendedTop],
+      smoothT,
+      [0.5, 0.6, 1]
+    )
+    return fogColor
+  })`
+  const result = runRaw(code)
+  // Should return null - no transformation, no log output, preserves original formatting
+  expect(result).toBeNull()
+})
+
+it('91b. returns null for multiline nested function calls without operators', () => {
+  const code = `Fn(() => {
+    return mix(
+      vec3(
+        redChannel,
+        greenChannel,
+        blueChannel
+      ),
+      backgroundColor,
+      alpha
+    )
+  })`
+  const result = runRaw(code)
+  expect(result).toBeNull()
+})
+
+it('91c. only transforms arithmetic in mixed multiline code', () => {
+  const code = `Fn(() => {
+    const noChange = gradient(
+      [a, b, c],
+      t,
+      [0.1, 0.5, 1.0]
+    )
+    const withChange = a + b
+    return mix(noChange, withChange, alpha)
+  })`
+  const out = run(code)
+  // Arrays should stay unchanged
+  expect(out).toContain('[a, b, c]')
+  expect(out).toContain('[0.1, 0.5, 1.0]')
+  // But arithmetic should be transformed
+  expect(out).toContain('a.add(b)')
 })
 })
 

@@ -111,6 +111,7 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
   if(t.isLogicalExpression(node)) {
     const left = transformExpression(node.left, true, scope, pureVars)
     const right = transformExpression(node.right, true, scope, pureVars)
+    if(left === node.left && right === node.right) return node
     return t.logicalExpression(node.operator, left, right)
   }
   if (t.isAssignmentExpression(node)) {
@@ -131,6 +132,7 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
     // simple =
     const leftExpr  = transformExpression(L, false, scope, pureVars)
     const rightExpr = transformExpression(R, true,  scope, pureVars)
+    if(leftExpr === L && rightExpr === R) return node
     return inheritComments(
       t.assignmentExpression('=', leftExpr, rightExpr),
       node
@@ -173,19 +175,21 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
   }
   if(t.isParenthesizedExpression(node)) {
     const inner = transformExpression(node.expression, isLeftmost, scope, pureVars)
+    if(inner === node.expression) return node
     return inheritComments(t.parenthesizedExpression(inner), node)
   }
   if(t.isConditionalExpression(node)){
-    const newNode = t.conditionalExpression(
-      transformExpression(node.test, false, scope, pureVars),
-      transformExpression(node.consequent, false, scope, pureVars),
-      transformExpression(node.alternate, false, scope, pureVars)
-    )
-    return inheritComments(newNode, node)
+    const newTest = transformExpression(node.test, false, scope, pureVars)
+    const newConsequent = transformExpression(node.consequent, false, scope, pureVars)
+    const newAlternate = transformExpression(node.alternate, false, scope, pureVars)
+    if(newTest === node.test && newConsequent === node.consequent && newAlternate === node.alternate) return node
+    return inheritComments(t.conditionalExpression(newTest, newConsequent, newAlternate), node)
   }
   if(t.isCallExpression(node)){
     const newCallee = transformExpression(node.callee, false, scope, pureVars)
     const newArgs = node.arguments.map(arg => transformExpression(arg, false, scope, pureVars))
+    const hasChanges = newCallee !== node.callee || newArgs.some((arg, i) => arg !== node.arguments[i])
+    if(!hasChanges) return node
     return inheritComments(t.callExpression(newCallee, newArgs), node)
   }
   if(t.isMemberExpression(node)){
@@ -201,6 +205,7 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
 		} else {
 			newProp = node.property
 		}
+		if(newObj === node.object && newProp === node.property) return node
 		return inheritComments(t.memberExpression(newObj, newProp, node.computed), node)
 	}
   if(t.isArrowFunctionExpression(node)){
@@ -215,26 +220,37 @@ const transformExpression = (node, isLeftmost = true, scope, pureVars = new Set(
     return inheritComments(t.arrowFunctionExpression(newParams, newBody, node.async), node)
   }
   if(t.isObjectExpression(node)){
+    let hasChanges = false
     const newProps = node.properties.map(prop => {
       if(t.isObjectProperty(prop)) {
         const newKey = prop.computed ? transformExpression(prop.key, false, scope, pureVars) : prop.key
         const newValue = transformExpression(prop.value, false, scope, pureVars)
+        if(newKey !== prop.key || newValue !== prop.value) hasChanges = true
+        if(!hasChanges) return prop
         return t.objectProperty(newKey, newValue, prop.computed, prop.shorthand)
       }
       return prop
     })
+    if(!hasChanges) return node
     return t.objectExpression(newProps)
   }
   if(t.isArrayExpression(node)){
     const newElements = node.elements.map(el => el ? transformExpression(el, false, scope, pureVars) : el)
+    const hasChanges = newElements.some((el, i) => el !== node.elements[i])
+    if(!hasChanges) return node
     return t.arrayExpression(newElements)
   }
   if(t.isTemplateLiteral(node)){
     const newExpressions = node.expressions.map(exp => transformExpression(exp, false, scope, pureVars))
+    const hasChanges = newExpressions.some((exp, i) => exp !== node.expressions[i])
+    if(!hasChanges) return node
     return t.templateLiteral(node.quasis, newExpressions)
   }
-  if(t.isAssignmentPattern(node))
-    return t.assignmentPattern(node.left, transformExpression(node.right, true, scope, pureVars))
+  if(t.isAssignmentPattern(node)) {
+    const newRight = transformExpression(node.right, true, scope, pureVars)
+    if(newRight === node.right) return node
+    return t.assignmentPattern(node.left, newRight)
+  }
   if(isLeftmost && t.isNumericLiteral(node))
     return inheritComments(t.callExpression(t.identifier('float'), [node]), node)
   if(isLeftmost && t.isIdentifier(node) && node.name !== 'Math'){

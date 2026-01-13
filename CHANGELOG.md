@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2025-01-13
+
+### Fixed
+- Multiline code without arithmetic operators is no longer unnecessarily reformatted
+- Plugin now returns `null` when no transformation is needed, preventing misleading log output
+- Arrays, objects, function calls, and other expressions without operators preserve their original formatting
+
+### Changed
+- Expression handlers now return original AST nodes when no transformation occurred, avoiding Babel regeneration artifacts
+
 ## [1.4.5] - 2025-12-29
 
 ### Fixed
