@@ -13,6 +13,19 @@ const runRaw = (code, filename = 'test.js') => {
   return TSLOperatorPlugin({logs:false}).transform(code, filename)
 }
 
+describe('Plugin Options', () => {
+  it('returns transformed output even when logs=false', () => {
+    const res = runRaw(`Fn(() => a + b)`)
+    expect(res).not.toBeNull()
+    expect(res.code).toContain('a.add(b)')
+  })
+
+  it('returns null when there is nothing to transform', () => {
+    const res = runRaw(`const x = 1 + 2`)
+    expect(res).toBeNull()
+  })
+})
+
 describe('Basic Arithmetic Operators', () => {
   describe('Operator +', () => {
     // 1 SUCCESS

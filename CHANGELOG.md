@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-01-13
+
+### Fixed
+- Plugin now correctly returns transformed output when `logs: false`
+
+### Added
+- Regression tests for `logs: false` transformation behavior
+
 ## [1.5.0] - 2025-01-13
 
 ### Fixed

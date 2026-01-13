@@ -346,8 +346,10 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
 							// Normalize both versions to ignore formatting differences
 							const normOrig = originalBodyCode.replace(/\s+/g, ' ').trim()
 							const normNew = newBodyCode.replace(/\s+/g, ' ').trim()
-							if(logs && normOrig !== normNew){
+              if(normOrig !== normNew){
                 hasTransformations = true
+              }
+              if(logs && normOrig !== normNew){
 								const orig = originalBodyCode.split('\n')
 								const nw = newBodyCode.split('\n')
 								const diff = []
