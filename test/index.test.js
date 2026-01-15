@@ -2124,7 +2124,7 @@ Fn(() => {
   })
 
   // @tsl on for loop
-  it('187. @tsl on for loop forces condition transformation', () => {
+  it('187. @tsl on for loop transforms to TSL Loop', () => {
     const code = `Fn(() => {
   //@tsl
   for (let i = 0; i < count; i++) {
@@ -2133,7 +2133,10 @@ Fn(() => {
   return sum
 })`
     const out = run(code)
-    expect(out).toContain('i.lessThan(count)')
+    expect(out).toContain('Loop(')
+    expect(out).toContain('start: int(0)')
+    expect(out).toContain('end: int(count)')
+    expect(out).toContain('sum.addAssign(value)')
   })
 
   // @js on for loop preserves condition
@@ -2227,5 +2230,182 @@ Fn(() => {
     expect(out).toContain('return a.add(b)')
     expect(out).toContain('return c.mul(d)')
     expect(out).toContain('return e.sub(f)')
+  })
+})
+
+describe('TSL Loop Transformation', () => {
+  describe('For Loop', () => {
+    it('194. transforms basic for loop with @tsl directive', () => {
+      const code = `Fn(() => {
+        //@tsl
+        for (let i = 0; i < 10; i++) {
+          doSomething()
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('Loop(')
+      expect(out).toContain('start: int(0)')
+      expect(out).toContain('end: int(10)')
+      expect(out).toContain('condition: "<"')
+      expect(out).toContain('name: "i"')
+    })
+
+    it('195. infers float type when start/end have decimals', () => {
+      const code = `Fn(() => {
+        //@tsl
+        for (let i = 0.0; i < 1.5; i++) {
+          doSomething()
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('type: "float"')
+      expect(out).toContain('start: float(0')
+    })
+
+    it('196. handles negative start values', () => {
+      const code = `Fn(() => {
+        //@tsl
+        for (let i = -5; i <= 5; i++) {
+          doSomething()
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('start: int(-5)')
+      expect(out).toContain('end: int(5)')
+      expect(out).toContain('condition: "<="')
+      expect(out).toContain('name: "i"')
+    })
+
+    it('197. handles decrement loops with i--', () => {
+      const code = `Fn(() => {
+        //@tsl
+        for (let j = 10; j > 0; j--) {
+          doSomething()
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('start: int(10)')
+      expect(out).toContain('end: int(0)')
+      expect(out).toContain('condition: ">"')
+      expect(out).toContain('name: "j"')
+    })
+
+    it('198. does not transform for loop without @tsl directive', () => {
+      const code = `Fn(() => {
+        for (let i = 0; i < 10; i++) {
+          doSomething()
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('for (')
+      expect(out).not.toContain('Loop(')
+    })
+
+    it('199. transforms arithmetic operations inside loop body', () => {
+      const code = `Fn(() => {
+        //@tsl
+        for (let i = 0; i < 10; i++) {
+          sum += a * b
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('Loop(')
+      expect(out).toContain('sum.addAssign(a.mul(b))')
+    })
+
+    it('200. uses destructuring pattern for iterator', () => {
+      const code = `Fn(() => {
+        //@tsl
+        for (let i = 0; i < 5; i++) {
+          result += i
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('({ i })')
+    })
+  })
+
+  describe('While Loop', () => {
+    it('201. transforms while loop with @tsl directive', () => {
+      const code = `Fn(() => {
+        //@tsl
+        while (x < 10) {
+          doSomething()
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('Loop(x.lessThan(10)')
+    })
+
+    it('202. transforms complex while condition', () => {
+      const code = `Fn(() => {
+        //@tsl
+        while (x < 10 && y > 0) {
+          doSomething()
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('Loop(x.lessThan(10).and(y.greaterThan(0))')
+    })
+
+    it('203. does not transform while loop without @tsl directive', () => {
+      const code = `Fn(() => {
+        while (x < 10) {
+          doSomething()
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('while (')
+      expect(out).not.toContain('Loop(')
+    })
+
+    it('204. transforms arithmetic in while loop body', () => {
+      const code = `Fn(() => {
+        //@tsl
+        while (x < 10) {
+          x += step
+        }
+      })`
+      const out = run(code)
+      expect(out).toContain('Loop(')
+      expect(out).toContain('x.addAssign(step)')
+    })
+  })
+
+  describe('Do-While Loop', () => {
+    it('205. transforms do-while loop with @tsl directive', () => {
+      const code = `Fn(() => {
+        //@tsl
+        do {
+          doSomething()
+        } while (x < 10)
+      })`
+      const out = run(code)
+      expect(out).toContain('(() => {')
+      expect(out).toContain('Loop(x.lessThan(10)')
+    })
+
+    it('206. does not transform do-while loop without @tsl directive', () => {
+      const code = `Fn(() => {
+        do {
+          doSomething()
+        } while (x < 10)
+      })`
+      const out = run(code)
+      expect(out).toContain('do {')
+      expect(out).not.toContain('Loop(')
+    })
+
+    it('207. transforms arithmetic in do-while loop body', () => {
+      const code = `Fn(() => {
+        //@tsl
+        do {
+          sum += value
+        } while (sum < limit)
+      })`
+      const out = run(code)
+      expect(out).toContain('sum.addAssign(value)')
+      expect(out).toContain('Loop(sum.lessThan(limit)')
+    })
   })
 })

@@ -2,10 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.7.0] - 2026-01-15
+## [1.8.0] - 2026-01-15
+
+### Added
+- **TSL Loop transformation**: `for`, `while`, and `do...while` loops marked with `//@tsl` now transform to TSL `Loop()` constructs
+  - For loops: `for (let i = 0; i < 10; i++)` → `Loop({ start, end, type, condition, name }, ({ i }) => {})`
+  - While loops: `while (x < 10)` → `Loop(x.lessThan(10), () => {})`
+  - Do-while loops: Transform to IIFE + Loop pattern
+  - Automatic `int`/`float` type inference based on loop values
 
 ### Enhancement
-- Transformation speed improve by ~30%
+- Transformation speed improved by ~30%
 
 ## [1.6.2] - 2026-01-15
 

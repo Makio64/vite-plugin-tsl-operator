@@ -40,14 +40,50 @@ const tslContextMap = {
 
 const directiveRegex = /\/\/\s*@(tsl|js)\b/i
 
+const tslMethodsSet = new Set([
+  'add',
+  'sub',
+  'mul',
+  'div',
+  'mod',
+  'greaterThan',
+  'lessThan',
+  'greaterThanEqual',
+  'lessThanEqual',
+  'equal',
+  'notEqual',
+  'and',
+  'or',
+  'not',
+  'toVar',
+  'toConst'
+])
+
+const tslConstructorsSet = new Set([
+  'float',
+  'int',
+  'vec2',
+  'vec3',
+  'vec4',
+  'mat3',
+  'mat4',
+  'color',
+  'uniform',
+  'attribute',
+  'varying',
+  'texture'
+])
+
 const parseDirectives = code => {
+  const lowerCode = code.toLowerCase()
+  if (!lowerCode.includes('@tsl') && !lowerCode.includes('@js')) return null
   const directives = new Map()
   const lines = code.split('\n')
   lines.forEach((line, idx) => {
     const match = line.match(directiveRegex)
     if (match) directives.set(idx + 1, match[1].toLowerCase())
   })
-  return directives
+  return directives.size ? directives : null
 }
 
 const getDirectiveForNode = (node, directives) => {
@@ -94,15 +130,10 @@ const containsTSLOperation = node => {
   }
   if (t.isCallExpression(node) && t.isMemberExpression(node.callee)) {
     const methodName = node.callee.property?.name
-    const tslMethods = ['add', 'sub', 'mul', 'div', 'mod', 'greaterThan', 'lessThan',
-      'greaterThanEqual', 'lessThanEqual', 'equal', 'notEqual',
-      'and', 'or', 'not', 'toVar', 'toConst']
-    if (tslMethods.includes(methodName)) return true
+    if (tslMethodsSet.has(methodName)) return true
   }
   if (t.isCallExpression(node) && t.isIdentifier(node.callee)) {
-    const tslConstructors = ['float', 'int', 'vec2', 'vec3', 'vec4', 'mat3', 'mat4',
-      'color', 'uniform', 'attribute', 'varying', 'texture']
-    if (tslConstructors.includes(node.callee.name)) return true
+    if (tslConstructorsSet.has(node.callee.name)) return true
   }
   if (t.isBinaryExpression(node)) {
     return containsTSLOperation(node.left) || containsTSLOperation(node.right)
@@ -127,6 +158,86 @@ const shouldTransformToTSL = node => {
     return containsTSLOperation(node.argument)
   }
   return false
+}
+
+// TSL Loop transformation helpers
+const inferNumericType = node => {
+  if (t.isNumericLiteral(node)) return Number.isInteger(node.value) ? 'int' : 'float'
+  if (t.isUnaryExpression(node) && node.operator === '-' && t.isNumericLiteral(node.argument))
+    return Number.isInteger(node.argument.value) ? 'int' : 'float'
+  return 'int'
+}
+
+const wrapInNumericType = (node, type) =>
+  t.callExpression(t.identifier(type === 'float' ? 'float' : 'int'), [node])
+
+const parseForLoop = stmt => {
+  if (!stmt.init || !t.isVariableDeclaration(stmt.init)) return null
+  const decl = stmt.init.declarations[0]
+  if (!t.isIdentifier(decl.id)) return null
+  const iteratorName = decl.id.name
+  const startValue = decl.init
+  if (!startValue) return null
+
+  if (!stmt.test || !t.isBinaryExpression(stmt.test)) return null
+  const { operator, left, right } = stmt.test
+  if (!['<', '<=', '>', '>='].includes(operator)) return null
+  if (!t.isIdentifier(left, { name: iteratorName })) return null
+
+  if (!stmt.update) return null
+  const isValidUpdate = t.isUpdateExpression(stmt.update) &&
+    ['++', '--'].includes(stmt.update.operator) &&
+    t.isIdentifier(stmt.update.argument, { name: iteratorName })
+  if (!isValidUpdate) return null
+
+  return { iteratorName, startValue, endValue: right, operator }
+}
+
+const transformForLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, state) => {
+  const parsed = parseForLoop(stmt)
+  if (!parsed) return null
+
+  const { iteratorName, startValue, endValue, operator } = parsed
+  const startType = inferNumericType(startValue)
+  const endType = inferNumericType(endValue)
+  const numericType = (startType === 'float' || endType === 'float') ? 'float' : 'int'
+
+  const configObj = t.objectExpression([
+    t.objectProperty(t.identifier('start'), wrapInNumericType(t.cloneNode(startValue), numericType)),
+    t.objectProperty(t.identifier('end'), wrapInNumericType(t.cloneNode(endValue), numericType)),
+    t.objectProperty(t.identifier('type'), t.stringLiteral(numericType)),
+    t.objectProperty(t.identifier('condition'), t.stringLiteral(operator)),
+    t.objectProperty(t.identifier('name'), t.stringLiteral(iteratorName))
+  ])
+
+  const transformedBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
+  const callback = t.arrowFunctionExpression(
+    [t.objectPattern([t.objectProperty(t.identifier(iteratorName), t.identifier(iteratorName), false, true)])],
+    transformedBody
+  )
+
+  markChanged(state)
+  return t.callExpression(t.identifier('Loop'), [configObj, callback])
+}
+
+const transformWhileLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, state) => {
+  const transformedCondition = transformExpression(stmt.test, true, scope, pureVars, true, directives, state)
+  const transformedBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
+  const callback = t.arrowFunctionExpression([], transformedBody)
+  markChanged(state)
+  return t.callExpression(t.identifier('Loop'), [transformedCondition, callback])
+}
+
+const transformDoWhileToTSL = (stmt, scope, pureVars, directives, fnForceTSL, state) => {
+  const initialBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
+  const iife = t.callExpression(t.arrowFunctionExpression([], initialBody), [])
+
+  const transformedCondition = transformExpression(stmt.test, true, scope, pureVars, true, directives, state)
+  const loopBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
+  const loopCall = t.callExpression(t.identifier('Loop'), [transformedCondition, t.arrowFunctionExpression([], loopBody)])
+
+  markChanged(state)
+  return [t.expressionStatement(iife), t.expressionStatement(loopCall)]
 }
 
 const transformPattern = (node, scope, pureVars, state, forceTSL = false, directives = null) => {
@@ -529,6 +640,14 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
           ? stmt.expression
           : transformExpression(stmt.expression, true, scope, localPure, stmtForceTSL, directives, state)
       else if (t.isForStatement(stmt)) {
+        if (stmtDirective === 'tsl') {
+          const loopExpr = transformForLoopToTSL(stmt, scope, localPure, directives, fnForceTSL, state)
+          if (loopExpr) {
+            const idx = body.body.indexOf(stmt)
+            body.body[idx] = inheritComments(t.expressionStatement(loopExpr), stmt)
+            return
+          }
+        }
         if (stmt.init) stmt.init = transformExpression(stmt.init, true, scope, localPure, stmtForceTSL, directives, state)
         if (stmt.test) stmt.test = transformExpression(stmt.test, true, scope, localPure, stmtForceTSL, directives, state)
         if (stmt.update) stmt.update = transformExpression(stmt.update, true, scope, localPure, stmtForceTSL, directives, state)
@@ -537,12 +656,24 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
         }
       }
       else if (t.isWhileStatement(stmt)) {
+        if (stmtDirective === 'tsl') {
+          const loopExpr = transformWhileLoopToTSL(stmt, scope, localPure, directives, fnForceTSL, state)
+          const idx = body.body.indexOf(stmt)
+          body.body[idx] = inheritComments(t.expressionStatement(loopExpr), stmt)
+          return
+        }
         if (stmt.test) stmt.test = transformExpression(stmt.test, true, scope, localPure, stmtForceTSL, directives, state)
         if (t.isBlockStatement(stmt.body)) {
           stmt.body = transformBody(stmt.body, scope, localPure, directives, fnForceTSL, state)
         }
       }
       else if (t.isDoWhileStatement(stmt)) {
+        if (stmtDirective === 'tsl') {
+          const [iifeStmt, loopStmt] = transformDoWhileToTSL(stmt, scope, localPure, directives, fnForceTSL, state)
+          const idx = body.body.indexOf(stmt)
+          body.body.splice(idx, 1, inheritComments(iifeStmt, stmt), loopStmt)
+          return
+        }
         if (stmt.test) stmt.test = transformExpression(stmt.test, true, scope, localPure, stmtForceTSL, directives, state)
         if (t.isBlockStatement(stmt.body)) {
           stmt.body = transformBody(stmt.body, scope, localPure, directives, fnForceTSL, state)
@@ -612,7 +743,7 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
 
           const fnLine = path.node.loc?.start?.line
           let fnForceTSL = false
-          if (fnLine && directives.size > 0) {
+          if (fnLine && directives && directives.size > 0) {
             const fnDirective = directives.get(fnLine) || directives.get(fnLine - 1)
             if (fnDirective === 'tsl') fnForceTSL = true
           }

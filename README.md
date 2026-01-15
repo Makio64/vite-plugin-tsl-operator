@@ -38,6 +38,7 @@ Fn(()=>{
 - [Usage](#usage)
 - [Options](#options)
 - [How it works](#how-it-works)
+- [TSL Loop Transformation](#tsl-loop-transformation)
 - [About TSL](#about-tsl)
 - [License](#license)
 
@@ -89,7 +90,7 @@ It **only** looks inside `Fn(() => { ... })` blocks. Code outside is untouched.
 const opacity = uniform(0) // Ignored (Plain JS)
 
 Fn(()=>{
-  return opacity * 3 // Transformed to .mul(3)
+  return opacity * 3 // Transformed to opacity.mul(3)
 })
 ```
 
@@ -99,11 +100,7 @@ Fn(()=>{
 
 The plugin automatically detects when to transform operators.
 
-It uses **context-aware logic** to decide if an expression should be TSL or JavaScript:
-
-- **TSL contexts**: `return`, `select`, `mix`, `If`, `ElseIf`.
-- **JS contexts**: `if`, `for`, `while` (keeps standard JS conditions, great for metaprogramming).
-
+It uses **context-aware logic** to decide if an expression should be TSL or JavaScript.
 
 ### Manual Overrides
 
@@ -123,10 +120,55 @@ Fn(() => {
 Fn(() => {
   //@js
   const test = x + y  // will not transform
-  
+
   const test = x + y  // will transform to x.add(y)
 })
 ```
+
+### TSL Loop Transformation
+
+Use `//@tsl` before `for`, `while`, or `do...while` loops to transform them into TSL `Loop()` constructs.
+
+**For Loop:**
+```js
+Fn(() => {
+  //@tsl
+  for (let i = 0; i < 10; i++) {
+    sum += value
+  }
+})
+// Transforms to:
+// Loop({ start: int(0), end: int(10), type: "int", condition: "<", name: "i" }, ({ i }) => {
+//   sum.addAssign(value)
+// })
+```
+
+**While Loop:**
+```js
+Fn(() => {
+  //@tsl
+  while (x < 10) {
+    x += 1
+  }
+})
+// Transforms to:
+// Loop(x.lessThan(10), () => {
+//   x.addAssign(1)
+// })
+```
+
+**Do-While Loop:**
+```js
+Fn(() => {
+  //@tsl
+  do {
+    x += 1
+  } while (x < 10)
+})
+// Transforms to an IIFE (executes body once) + Loop
+```
+
+> **Note**: The plugin automatically infers `int` or `float` type based on the loop values.
 
 ## About TSL
 
