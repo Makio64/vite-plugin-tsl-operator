@@ -21,7 +21,7 @@ Instead of:
 Fn(()=>{
 	let x = float(1).sub(alpha.mul(color.r))
 	x = x.mul(4)
-	return select(visible, x, float(0))
+	return x
 })
 ```
 
