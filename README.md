@@ -36,10 +36,9 @@ Fn(()=>{
 
 - [Installation](#installation)
 - [Usage](#usage)
-- [Options](#how-it-works)
-- [How-it-works](#how-it-works)
-- [Limitation](#limitation)
-- [About-TSL](#about-tsl)
+- [Options](#options)
+- [How it works](#how-it-works)
+- [About TSL](#about-tsl)
 - [License](#license)
 
 ## Installation 
@@ -82,72 +81,50 @@ Note : The transformation happened only when the file is call by the client or d
 
 ## How it works
 
-It traverse your code and look for `Fn`, then transform it to methods chaining code ( as if you write TSL without this plugin )
+The plugin walks your source and selectively transforms code.
 
-
-
-### Directive Comments
-
-Use `//@tsl` and `//@js` comments to explicitly control transformation:
+It **only** looks inside `Fn(() => { ... })` blocks. Code outside is untouched.
 
 ```js
-// Force ALL comparisons to transform (useful for callbacks or custom functions/nodes not automatically detected)
+const opacity = uniform(0) // Ignored (Plain JS)
+
+Fn(()=>{
+  return opacity * 3 // Transformed to .mul(3)
+})
+```
+
+> **Note**: Files inside `node_modules` are excluded.
+
+### Smart Detection
+
+The plugin automatically detects when to transform operators.
+
+It uses **context-aware logic** to decide if an expression should be TSL or JavaScript:
+
+- **TSL contexts**: `return`, `select`, `mix`, `If`, `ElseIf`.
+- **JS contexts**: `if`, `for`, `while` (keeps standard JS conditions, great for metaprogramming).
+
+
+### Manual Overrides
+
+If you have an edge case which is not cover by the smart-detection you can use `//@tsl` or `//@js` to force the behavior.
+
+- **`//@tsl`** : Force transformation (useful for custom functions or callbacks).
+- **`//@js`** : Disable transformation (keep as plain JS).
+
+Directives apply to the **next line** or the **entire Fn** (if placed at the top).
+
+```js
 //@tsl
 Fn(() => {
-  // auto-detection might miss this if 'a' and 'b' are simple variables
   customNode( a > b ) // → customNode( a.greaterThan(b) )
 })
 
-// Control specific lines
 Fn(() => {
   //@js
-  const check = x > y  // preserved as plain JS
-
-  //@tsl
-  const flag = a > b  // → a.greaterThan(b)
-
-  return x + y  // arithmetic always transforms
-})
-```
-
-**Notes:**
-- Directive on `Fn()` line affects the entire function body
-- Directive above a line affects only that line
-
-## Limitation
-
-It works only inside a `Fn()` to not mess up the rest of your code
-```js
-const opacity = uniform(0) //will not be parsed
-
-Fn(()=>{
-	//will be parsed
-	return opacity * 3 * distance( positionLocal ) 
-
-	// similar to
-	return opacity.mul(3).mul(distance( positionLocal ))
-})
-```
-
-PS : It doesn't convert inside `node_modules`
-
-## Context-Aware Transformations
-
-The plugin automatically detects when to transform operators:
-
-- **TSL Logic**: Transforms in `return`, `select`, `mix`, `If`, and `ElseIf`.
-- **Javascript Logic**: Keeps `if`, `for`, `while` standard JS conditions (great for generating code).
-
-```js
-Fn(() => {
-  // ✅ Transformed to TSL
-  const a = select(x > 0, 1, 0) 
-  const b = mix(0, 1, y > 0.5)
+  const test = x + y  // will not transform
   
-  // ❌ Kept as JavaScript (Metaprogramming)
-  if( parameters.useFog ) {
-     return fog( color )
-  }
+  const test = x + y  // will transform to x.add(y)
 })
 ```
 
