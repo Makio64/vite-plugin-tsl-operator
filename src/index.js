@@ -726,10 +726,11 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
   return {
     name: 'tsl-operator-plugin',
     transform(code, id) {
-      if(!/\.(js|ts)x?$/.test(id) || id.includes('node_modules')) return null
+      const cleanId = id ? id.split('?')[0].split('#')[0] : id
+      if(!/\.(js|ts)x?$/.test(cleanId) || cleanId.includes('node_modules')) return null
       if(!code.includes('Fn(')) return null
 
-      const filename = path.basename(id)
+      const filename = path.basename(cleanId)
       const ast = parse(code, {sourceType: 'module', plugins: defaultParserPlugins})
       const directives = parseDirectives(code)
 

@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.8.0] - 2026-01-15
+## [1.7.1] - 2026-01-15
+
+### Added
+- Browser runtime tests use operator syntax (non-TSL) to validate plugin transforms in WebGL/WebGPU runs.
+
+### Changed
+- Vitest projects now apply the plugin directly with `logs: true`, making transform diffs visible in test output.
+
+### Fixed
+- Plugin now handles file ids with query/hash suffixes (e.g. `?v=`) to ensure transforms run in Vite/Vitest browser builds.
+
+
+## [1.7.0] - 2026-01-15
 
 ### Added
 - **TSL Loop transformation**: `for`, `while`, and `do...while` loops marked with `//@tsl` now transform to TSL `Loop()` constructs
