@@ -66,9 +66,19 @@ export default defineConfig({
 
 ## Options
 
-`logs` (`false` by default) : will log the transformations in the console
+`logs` (`false` by default) : logs the transformations in the `terminal`
+
+```js
+tslOperatorPlugin({ logs: true })                     // log all files
+tslOperatorPlugin({ logs: false })                    // no logging (default)
+tslOperatorPlugin({ logs: "MyShader.js" })            // log only this file
+tslOperatorPlugin({ logs: ["File1.js", "File2.js"] }) // log only these files
+tslOperatorPlugin({ logs: /shader/i })                // log files matching regex
+```
 
 <img width="593" alt="Screenshot 2025-02-08 at 12 55 26" src="https://github.com/user-attachments/assets/20861ec1-6c75-4d35-87da-61e3ed8a2ba9" />
+
+Note : The transformation happened only when the file is call by the client or during build ( Vite optimization )
 
 ## How it works
 

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2026-01-15
+
+### Added
+- File-specific logging: `logs` option now accepts string, array, or regex to filter which files log transformations
+
 ## [1.6.0] - 2026-01-13
 
 ### Added

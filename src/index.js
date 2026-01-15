@@ -595,6 +595,15 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
     : transformExpression(body, true, scope, pureVars, true, directives)
 }
 
+function shouldLog(logs, filename) {
+  if (logs === true) return true
+  if (logs === false || logs == null) return false
+  if (typeof logs === 'string') return filename === logs
+  if (Array.isArray(logs)) return logs.includes(filename)
+  if (logs instanceof RegExp) return logs.test(filename)
+  return false
+}
+
 export default function TSLOperatorPlugin({logs = true} = {}) {
   return {
     name: 'tsl-operator-plugin',
@@ -637,7 +646,7 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
               if(normOrig !== normNew){
                 hasTransformations = true
               }
-              if(logs && normOrig !== normNew){
+              if(shouldLog(logs, filename) && normOrig !== normNew){
 								const orig = originalBodyCode.split('\n')
 								const nw = newBodyCode.split('\n')
 								const diff = []

@@ -1,5 +1,5 @@
 // test/tsl-operator-plugin.spec.js
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import TSLOperatorPlugin from '../src/index.js'
 
 // Helper to run the plugin in a shorter form
@@ -23,6 +23,50 @@ describe('Plugin Options', () => {
   it('returns null when there is nothing to transform', () => {
     const res = runRaw(`const x = 1 + 2`)
     expect(res).toBeNull()
+  })
+
+  describe('logs file filter', () => {
+    it('logs when filename matches string filter', () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      TSLOperatorPlugin({ logs: 'shader.js' }).transform(`Fn(() => a + b)`, 'shader.js')
+      expect(spy).toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('does not log when filename does not match string filter', () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      TSLOperatorPlugin({ logs: 'shader.js' }).transform(`Fn(() => a + b)`, 'other.js')
+      expect(spy).not.toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('logs when filename matches array filter', () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      TSLOperatorPlugin({ logs: ['a.js', 'b.js'] }).transform(`Fn(() => a + b)`, 'b.js')
+      expect(spy).toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('does not log when filename not in array filter', () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      TSLOperatorPlugin({ logs: ['a.js', 'b.js'] }).transform(`Fn(() => a + b)`, 'c.js')
+      expect(spy).not.toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('logs when filename matches regex filter', () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      TSLOperatorPlugin({ logs: /shader/i }).transform(`Fn(() => a + b)`, 'MyShader.js')
+      expect(spy).toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('does not log when filename does not match regex filter', () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      TSLOperatorPlugin({ logs: /shader/i }).transform(`Fn(() => a + b)`, 'utils.js')
+      expect(spy).not.toHaveBeenCalled()
+      spy.mockRestore()
+    })
   })
 })
 
