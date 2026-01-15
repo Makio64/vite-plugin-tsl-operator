@@ -586,6 +586,27 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
           stmt.body = transformBody(stmt.body, scope, localPure, directives, fnForceTSL)
         }
       }
+      else if (t.isSwitchStatement(stmt)) {
+        // Transform discriminant expression
+        if (stmt.discriminant) {
+          stmt.discriminant = transformExpression(stmt.discriminant, true, scope, localPure, stmtForceTSL, directives)
+        }
+        // Transform each case
+        if (stmt.cases) {
+          stmt.cases.forEach(switchCase => {
+            // Transform case test (null for default case)
+            if (switchCase.test) {
+              switchCase.test = transformExpression(switchCase.test, true, scope, localPure, stmtForceTSL, directives)
+            }
+            // Transform case body - wrap in block and process
+            if (switchCase.consequent && switchCase.consequent.length > 0) {
+              const dummy = t.blockStatement(switchCase.consequent)
+              transformBody(dummy, scope, localPure, directives, fnForceTSL)
+              switchCase.consequent = dummy.body
+            }
+          })
+        }
+      }
     })
     return body
   }

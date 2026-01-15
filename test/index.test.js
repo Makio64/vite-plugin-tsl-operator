@@ -2149,4 +2149,83 @@ Fn(() => {
     expect(out).toContain('i < 10')  // preserved
     expect(out).toContain('.addAssign(')  // arithmetic still transforms
   })
+
+  // Switch statement tests
+  it('189. transforms assignment operators in switch case', () => {
+    const code = `Fn(() => {
+  switch (type) {
+    case 0:
+      color *= pattern;
+      break;
+  }
+})`
+    const out = run(code)
+    expect(out).toContain('color.mulAssign(pattern)')
+  })
+
+  it('190. transforms operators in multiple switch cases', () => {
+    const code = `Fn(() => {
+  switch (mode) {
+    case 0:
+      result += a;
+      break;
+    case 1:
+      result -= b;
+      break;
+    default:
+      result *= c;
+  }
+})`
+    const out = run(code)
+    expect(out).toContain('result.addAssign(a)')
+    expect(out).toContain('result.subAssign(b)')
+    expect(out).toContain('result.mulAssign(c)')
+  })
+
+  it('191. transforms expressions in switch discriminant and case tests', () => {
+    const code = `Fn(() => {
+  switch (a + b) {
+    case x * y:
+      color = a + b;
+      break;
+  }
+})`
+    const out = run(code)
+    expect(out).toContain('switch (a.add(b))')
+    expect(out).toContain('case x.mul(y):')
+    expect(out).toContain('a.add(b)')
+  })
+
+  it('192. transforms nested switch statements', () => {
+    const code = `Fn(() => {
+  switch (outer) {
+    case 0:
+      switch (inner) {
+        case 1:
+          result *= value;
+          break;
+      }
+      break;
+  }
+})`
+    const out = run(code)
+    expect(out).toContain('result.mulAssign(value)')
+  })
+
+  it('193. transforms arithmetic in switch with return statements', () => {
+    const code = `Fn(() => {
+  switch (type) {
+    case 0:
+      return a + b;
+    case 1:
+      return c * d;
+    default:
+      return e - f;
+  }
+})`
+    const out = run(code)
+    expect(out).toContain('return a.add(b)')
+    expect(out).toContain('return c.mul(d)')
+    expect(out).toContain('return e.sub(f)')
+  })
 })
