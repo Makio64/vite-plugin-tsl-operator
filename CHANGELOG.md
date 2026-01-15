@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-01-15
+
+### Enhancement
+- Transformation speed improve by ~30%
+
 ## [1.6.2] - 2026-01-15
 
 ### Added
