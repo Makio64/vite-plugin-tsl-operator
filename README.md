@@ -66,7 +66,13 @@ export default defineConfig({
 
 ## Options
 
-`logs` (`false` by default) : logs the transformations in the `terminal`
+| Option | Default | Description |
+|--------|---------|-------------|
+| `logs` | `false` | Log transformations to terminal |
+| `autoImportMissingTSL` | `true` | Automatically add missing TSL imports (`float`, `int`, `Loop`) |
+| `importSource` | `'three/tsl'` | Import source for auto-imports |
+
+### Logging
 
 ```js
 tslOperatorPlugin({ logs: true })                     // log all files
@@ -77,6 +83,27 @@ tslOperatorPlugin({ logs: /shader/i })                // log files matching rege
 ```
 
 <img width="593" alt="Screenshot 2025-02-08 at 12 55 26" src="https://github.com/user-attachments/assets/20861ec1-6c75-4d35-87da-61e3ed8a2ba9" />
+
+### Auto Import
+
+The plugin automatically adds missing imports when transformations require TSL types like `float`, `int`, or `Loop`.
+
+```js
+// Before transformation (no float import)
+import { Fn, uv } from 'three/tsl'
+Fn(() => 1 - uv())
+
+// After transformation (float automatically added)
+import { Fn, uv, float } from 'three/tsl'
+Fn(() => float(1).sub(uv()))
+```
+
+To disable auto-import or use a different import source:
+
+```js
+tslOperatorPlugin({ autoImportMissingTSL: false })              // disable auto-import
+tslOperatorPlugin({ importSource: 'three/webgpu' })   // use different source
+```
 
 Note : The transformation happened only when the file is call by the client or during build ( Vite optimization )
 

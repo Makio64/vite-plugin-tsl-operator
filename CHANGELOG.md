@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-01-30
+
+### Added
+- **Auto-import TSL types**: Plugin now automatically adds missing imports for `float`, `int`, and `Loop` when transformations use them
+  - Prevents runtime errors like `THREE.TSL: ReferenceError: float is not defined`
+  - Adds to existing `three/tsl` or `three/webgpu` imports when present
+  - Creates new import statement if no TSL import exists
+- New plugin options:
+  - `autoImportMissingTSL` (default: `true`) - Enable/disable automatic import injection
+  - `importSource` (default: `'three/tsl'`) - Specify the import source for new imports
+
+### Example
+```js
+// Input (no float import)
+import { Fn, uv } from 'three/tsl'
+Fn(() => {
+  const coord = 1 - uv()
+  return coord
+})
+
+// Output (float automatically added)
+import { Fn, uv, float } from 'three/tsl'
+Fn(() => {
+  const coord = float(1).sub(uv())
+  return coord
+})
+```
+
 ## [1.7.2] - 2026-01-30
 
 ### Fixed

@@ -2497,3 +2497,98 @@ describe('Pure numeric variable detection', () => {
     expect(out).not.toContain('.mul(')
   })
 })
+
+// Auto-Import Tests
+describe('Auto Import', () => {
+  // Helper that accepts plugin options
+  const runWithOptions = (code, options = {}, filename = 'test.js') => {
+    const result = TSLOperatorPlugin({ logs: false, ...options }).transform(code, filename)
+    return result ? result.code : code
+  }
+
+  it('216. adds float import when not present', () => {
+    const code = `Fn(() => 1 + a)`
+    const out = runWithOptions(code)
+    expect(out).toMatch(/import \{ float \} from ["']three\/tsl["']/)
+    expect(out).toContain('float(1).add(a)')
+  })
+
+  it('217. adds to existing three/tsl import', () => {
+    const code = `import { Fn, vec3 } from 'three/tsl'
+Fn(() => 1 + a)`
+    const out = runWithOptions(code)
+    // Should add float to existing import, not create new one
+    expect(out).toMatch(/import \{[^}]*float[^}]*\} from ['"]three\/tsl['"]/)
+    expect(out).not.toMatch(/import \{ float \} from ['"]three\/tsl['"][\s\S]*import/)
+  })
+
+  it('218. does not add float if already imported', () => {
+    const code = `import { float, Fn } from 'three/tsl'
+Fn(() => 1 + a)`
+    const out = runWithOptions(code)
+    // Count float occurrences - should be 2: one in import, one in float(1)
+    const matches = out.match(/\bfloat\b/g)
+    expect(matches.length).toBe(2)
+  })
+
+  it('219. skips auto-import when namespace import exists', () => {
+    const code = `import * as TSL from 'three/tsl'
+Fn(() => 1 + a)`
+    const out = runWithOptions(code)
+    // Should not add separate float import since namespace has access to all
+    expect(out).not.toContain("import { float }")
+  })
+
+  it('220. respects autoImportMissingTSL: false option', () => {
+    const code = `Fn(() => 1 + a)`
+    const out = runWithOptions(code, { autoImportMissingTSL: false })
+    // Should not add import when autoImportMissingTSL is disabled
+    expect(out).not.toContain("import { float }")
+    expect(out).toContain('float(1).add(a)')
+  })
+
+  it('221. uses custom importSource option', () => {
+    const code = `Fn(() => 1 + a)`
+    const out = runWithOptions(code, { importSource: 'three/webgpu' })
+    expect(out).toMatch(/import \{ float \} from ["']three\/webgpu["']/)
+  })
+
+  it('222. adds to existing three/webgpu import', () => {
+    const code = `import { Fn } from 'three/webgpu'
+Fn(() => 1 + a)`
+    const out = runWithOptions(code)
+    // Should add to existing three/webgpu import
+    expect(out).toMatch(/import \{[^}]*float[^}]*\} from ['"]three\/webgpu['"]/)
+  })
+
+  it('223. does not duplicate imports for multiple float usages', () => {
+    const code = `Fn(() => {
+      const x = 1 + a
+      const y = 2 + b
+      return 3 + c
+    })`
+    const out = runWithOptions(code)
+    // Should only have one import statement with float
+    const importMatches = out.match(/import.*float.*from/g)
+    expect(importMatches.length).toBe(1)
+  })
+
+  it('224. adds import after last existing import', () => {
+    const code = `import something from 'some-module'
+import another from 'another-module'
+Fn(() => 1 + a)`
+    const out = runWithOptions(code)
+    // The float import should be after the other imports
+    // Check that the float import appears after another-module in the output
+    const anotherIdx = out.indexOf('another-module')
+    const floatImportIdx = out.indexOf('import { float }')
+    expect(floatImportIdx).toBeGreaterThan(anotherIdx)
+  })
+
+  it('225. handles negative number wrapping with float import', () => {
+    const code = `Fn(() => -5 + a)`
+    const out = runWithOptions(code)
+    expect(out).toMatch(/import \{ float \} from ["']three\/tsl["']/)
+    expect(out).toContain('float(-5).add(a)')
+  })
+})

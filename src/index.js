@@ -74,6 +74,97 @@ const tslConstructorsSet = new Set([
   'texture'
 ])
 
+// Recognized TSL import sources
+const tslImportSources = new Set([
+  'three/tsl',
+  'three/webgpu'
+])
+
+const isTSLSource = source =>
+  tslImportSources.has(source) || source.startsWith('three/src/nodes/')
+
+// Analyze existing imports in the AST
+const analyzeExistingImports = ast => {
+  const result = {
+    namedImports: new Map(), // identifier -> { source, node }
+    hasNamespaceImport: false,
+    tslImportNode: null, // First TSL import declaration found
+    tslSource: null // Source of first TSL import
+  }
+
+  for (const node of ast.program.body) {
+    if (!t.isImportDeclaration(node)) continue
+
+    const source = node.source.value
+    const isFromTSL = isTSLSource(source)
+
+    for (const specifier of node.specifiers) {
+      if (t.isImportSpecifier(specifier)) {
+        const importedName = specifier.imported?.name || specifier.local?.name
+        result.namedImports.set(importedName, { source, node })
+      } else if (t.isImportNamespaceSpecifier(specifier) && isFromTSL) {
+        result.hasNamespaceImport = true
+      }
+    }
+
+    if (isFromTSL && !result.tslImportNode) {
+      result.tslImportNode = node
+      result.tslSource = source
+    }
+  }
+
+  return result
+}
+
+// Get missing imports that need to be added
+const getMissingImports = (usedWrappers, existingImports) => {
+  const missing = new Set()
+
+  // If there's a namespace import, user has access to all TSL types
+  if (existingImports.hasNamespaceImport) return missing
+
+  for (const wrapper of usedWrappers) {
+    if (!existingImports.namedImports.has(wrapper)) {
+      missing.add(wrapper)
+    }
+  }
+
+  return missing
+}
+
+// Add missing imports to the AST
+const addMissingImports = (ast, missingImports, existingImports, defaultSource = 'three/tsl') => {
+  if (missingImports.size === 0) return false
+
+  const newSpecifiers = Array.from(missingImports).map(name =>
+    t.importSpecifier(t.identifier(name), t.identifier(name))
+  )
+
+  if (existingImports.tslImportNode) {
+    // Add to existing TSL import
+    existingImports.tslImportNode.specifiers.push(...newSpecifiers)
+  } else {
+    // Create new import declaration
+    const newImport = t.importDeclaration(newSpecifiers, t.stringLiteral(defaultSource))
+
+    // Insert after last import or at beginning
+    let lastImportIndex = -1
+    for (let i = 0; i < ast.program.body.length; i++) {
+      if (t.isImportDeclaration(ast.program.body[i])) {
+        lastImportIndex = i
+      }
+    }
+
+    if (lastImportIndex >= 0) {
+      ast.program.body.splice(lastImportIndex + 1, 0, newImport)
+    } else {
+      ast.program.body.unshift(newImport)
+    }
+  }
+
+  return true
+}
+
 const parseDirectives = code => {
   const lowerCode = code.toLowerCase()
   if (!lowerCode.includes('@tsl') && !lowerCode.includes('@js')) return null
@@ -178,8 +269,11 @@ const inferNumericType = node => {
   return 'int'
 }
 
-const wrapInNumericType = (node, type) =>
-  t.callExpression(t.identifier(type === 'float' ? 'float' : 'int'), [node])
+const wrapInNumericType = (node, type, state = null) => {
+  const wrapperName = type === 'float' ? 'float' : 'int'
+  if (state?.usedWrappers) state.usedWrappers.add(wrapperName)
+  return t.callExpression(t.identifier(wrapperName), [node])
+}
 
 const parseForLoop = stmt => {
   if (!stmt.init || !t.isVariableDeclaration(stmt.init)) return null
@@ -213,8 +307,8 @@ const transformForLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, st
   const numericType = (startType === 'float' || endType === 'float') ? 'float' : 'int'
 
   const configObj = t.objectExpression([
-    t.objectProperty(t.identifier('start'), wrapInNumericType(t.cloneNode(startValue), numericType)),
-    t.objectProperty(t.identifier('end'), wrapInNumericType(t.cloneNode(endValue), numericType)),
+    t.objectProperty(t.identifier('start'), wrapInNumericType(t.cloneNode(startValue), numericType, state)),
+    t.objectProperty(t.identifier('end'), wrapInNumericType(t.cloneNode(endValue), numericType, state)),
     t.objectProperty(t.identifier('type'), t.stringLiteral(numericType)),
     t.objectProperty(t.identifier('condition'), t.stringLiteral(operator)),
     t.objectProperty(t.identifier('name'), t.stringLiteral(iteratorName))
@@ -227,6 +321,7 @@ const transformForLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, st
   )
 
   markChanged(state)
+  if (state?.usedWrappers) state.usedWrappers.add('Loop')
   return t.callExpression(t.identifier('Loop'), [configObj, callback])
 }
 
@@ -235,6 +330,7 @@ const transformWhileLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, 
   const transformedBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
   const callback = t.arrowFunctionExpression([], transformedBody)
   markChanged(state)
+  if (state?.usedWrappers) state.usedWrappers.add('Loop')
   return t.callExpression(t.identifier('Loop'), [transformedCondition, callback])
 }
 
@@ -247,6 +343,7 @@ const transformDoWhileToTSL = (stmt, scope, pureVars, directives, fnForceTSL, st
   const loopCall = t.callExpression(t.identifier('Loop'), [transformedCondition, t.arrowFunctionExpression([], loopBody)])
 
   markChanged(state)
+  if (state?.usedWrappers) state.usedWrappers.add('Loop')
   return [t.expressionStatement(iife), t.expressionStatement(loopCall)]
 }
 
@@ -427,6 +524,7 @@ const transformExpression = (
     if(t.isNumericLiteral(node.argument)) {
       if(isLeftmost) {
         markChanged(state)
+        if (state?.usedWrappers) state.usedWrappers.add('float')
         return inheritComments(
           t.callExpression(t.identifier('float'), [t.numericLiteral(-node.argument.value)]),
           node
@@ -439,6 +537,7 @@ const transformExpression = (
       const isPure = (binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init, scope, pureVars))
         || (pureVars && pureVars.has(node.argument.name))
       if(isPure){
+        if (state?.usedWrappers) state.usedWrappers.add('float')
         const newArg = t.callExpression(t.identifier('float'), [node.argument])
         markChanged(state)
         return inheritComments(
@@ -591,6 +690,7 @@ const transformExpression = (
 
   if(isLeftmost && t.isNumericLiteral(node)) {
     markChanged(state)
+    if (state?.usedWrappers) state.usedWrappers.add('float')
     return inheritComments(t.callExpression(t.identifier('float'), [node]), node)
   }
   if(isLeftmost && t.isIdentifier(node) && node.name !== 'Math'){
@@ -598,6 +698,7 @@ const transformExpression = (
     if((binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init, scope, pureVars))
        || (pureVars && pureVars.has(node.name))) {
       markChanged(state)
+      if (state?.usedWrappers) state.usedWrappers.add('float')
       return inheritComments(t.callExpression(t.identifier('float'), [node]), node)
     }
     return node
@@ -732,7 +833,7 @@ const defaultParserPlugins = [
   'topLevelAwait'
 ]
 
-export default function TSLOperatorPlugin({logs = true} = {}) {
+export default function TSLOperatorPlugin({logs = true, autoImportMissingTSL = true, importSource = 'three/tsl'} = {}) {
   return {
     name: 'tsl-operator-plugin',
     transform(code, id) {
@@ -745,6 +846,7 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
       const directives = parseDirectives(code)
 
       let hasTransformations = false
+      const usedWrappers = new Set()
 
       traverse(ast, {
         CallExpression(path) {
@@ -760,7 +862,7 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
           }
 
           const logThisFile = shouldLog(logs, filename)
-          const state = {changed: false}
+          const state = {changed: false, usedWrappers}
           let originalBodyCode = null
 
           if (logThisFile) {
@@ -791,6 +893,13 @@ export default function TSLOperatorPlugin({logs = true} = {}) {
       })
 
       if(!hasTransformations) return null
+
+      // Auto-import missing TSL types
+      if (autoImportMissingTSL && usedWrappers.size > 0) {
+        const existingImports = analyzeExistingImports(ast)
+        const missingImports = getMissingImports(usedWrappers, existingImports)
+        addMissingImports(ast, missingImports, existingImports, importSource)
+      }
 
       const output = generate(ast, {retainLines: true}, code)
       return {code: output.code, map: output.map}
