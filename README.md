@@ -102,6 +102,17 @@ The plugin automatically detects when to transform operators.
 
 It uses **context-aware logic** to decide if an expression should be TSL or JavaScript.
 
+**Pure numeric expressions are preserved:**
+```js
+Fn(() => {
+  const radius = 0.08
+  const halfRadius = radius * 0.5      // Stays as-is (pure JS math)
+  return smoothstep(radius, halfRadius, dist)  // dist is TSL, but radius/halfRadius are numbers
+})
+```
+
+Variables initialized with numeric literals are recognized as plain JavaScript numbers and won't be transformed when used in arithmetic with other numbers.
+
 ### Manual Overrides
 
 If you have an edge case which is not cover by the smart-detection you can use `//@tsl` or `//@js` to force the behavior.

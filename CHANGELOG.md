@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.2] - 2026-01-30
+
+### Fixed
+- Pure numeric expressions involving variables now stay untransformed (e.g., `const radius = 0.08; radius * 0.5` stays as-is instead of becoming `float(radius).mul(0.5)`)
+- Variables initialized with numeric literals are now recognized as pure numeric values throughout the Fn() scope
+
+### Added
+- Extended `isPureNumeric()` to track variable bindings and detect pure numeric identifiers
+- Test cases for pure numeric variable detection (tests 208-215)
+
 ## [1.7.1] - 2026-01-15
 
 ### Added

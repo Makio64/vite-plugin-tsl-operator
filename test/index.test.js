@@ -277,8 +277,8 @@ describe('Unary Operations', () => {
       })
     `
     const out = run(code)
-    // It's purely numeric unary => no chain needed
-    expect(out).toContain('let a = -5')
+    // It's purely numeric unary => no chain needed (parentheses preserved from source)
+    expect(out).toContain('let a = (-5)')
     expect(out).not.toContain('float(-5)')
   })
 
@@ -638,7 +638,8 @@ describe('Real-World Examples', () => {
     `
     const out = run(code)
     expect(out).toContain("let outsideRange = 2.2")
-    expect(out).toContain("smoothstep(float(outsideRange).mul(-1), float(outsideRange).mul(-1).add(margin), vBatchPosition.x)")
+    // -outsideRange + margin stays as-is because both are pure numeric variables
+    expect(out).toContain("smoothstep(float(outsideRange).mul(-1), -outsideRange + margin, vBatchPosition.x)")
     expect(out).toContain("let outside = float(1).sub(left.mul(right))")
     expect(out).toContain("c = mix(c, fogColor, clamp(outside.sub(vBatchPosition.y.div(3))))")
     expect(out).toContain("return applyFog(c, vBatchTransformed)")
@@ -2407,5 +2408,92 @@ describe('TSL Loop Transformation', () => {
       expect(out).toContain('sum.addAssign(value)')
       expect(out).toContain('Loop(sum.lessThan(limit)')
     })
+  })
+})
+
+describe('Pure numeric variable detection', () => {
+  it('208. keeps expression intact when variable is initialized with numeric literal', () => {
+    const code = `Fn(() => {
+      const radius = 0.08
+      return radius * 0.5
+    })`
+    const out = run(code)
+    expect(out).toContain('radius * 0.5')
+    expect(out).not.toContain('float(radius)')
+    expect(out).not.toContain('.mul(')
+  })
+
+  it('209. keeps expression intact when multiple pure numeric variables are used', () => {
+    const code = `Fn(() => {
+      const a = 5
+      const b = 10
+      return a * b + 3
+    })`
+    const out = run(code)
+    expect(out).toContain('a * b + 3')
+    expect(out).not.toContain('.mul(')
+    expect(out).not.toContain('.add(')
+  })
+
+  it('210. transforms when pure numeric variable is combined with TSL node', () => {
+    const code = `Fn(() => {
+      const radius = 0.08
+      return radius * tslNode
+    })`
+    const out = run(code)
+    expect(out).toContain('float(radius).mul(tslNode)')
+  })
+
+  it('211. keeps pure numeric expression intact inside function call arguments', () => {
+    const code = `Fn(() => {
+      const eyeRadius = 0.08
+      return smoothstep(eyeRadius, eyeRadius * 0.5, dist)
+    })`
+    const out = run(code)
+    expect(out).toContain('eyeRadius * 0.5')
+    expect(out).not.toContain('float(eyeRadius)')
+    expect(out).not.toContain('.mul(0.5)')
+  })
+
+  it('212. keeps pure numeric expression intact with computed initializer', () => {
+    const code = `Fn(() => {
+      const x = 5 + 3
+      return x * 2
+    })`
+    const out = run(code)
+    expect(out).toContain('x * 2')
+    expect(out).not.toContain('.mul(')
+  })
+
+  it('213. transforms when one variable is numeric but other is TSL node', () => {
+    const code = `Fn(() => {
+      const size = 10
+      const tslVal = someFunc()
+      return size * tslVal
+    })`
+    const out = run(code)
+    expect(out).toContain('float(size).mul(tslVal)')
+  })
+
+  it('214. handles nested pure numeric expressions with variables', () => {
+    const code = `Fn(() => {
+      const a = 2
+      const b = 3
+      return (a * b) / (a + b)
+    })`
+    const out = run(code)
+    expect(out).toContain('(a * b) / (a + b)')
+    expect(out).not.toContain('.mul(')
+    expect(out).not.toContain('.div(')
+  })
+
+  it('215. keeps negative pure numeric variables intact', () => {
+    const code = `Fn(() => {
+      const offset = -5
+      return offset * 2
+    })`
+    const out = run(code)
+    expect(out).toContain('offset * 2')
+    expect(out).not.toContain('.mul(')
   })
 })

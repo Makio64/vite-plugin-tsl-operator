@@ -95,14 +95,24 @@ const getDirectiveForNode = (node, directives) => {
 const prettifyLine = line =>
   line.replace(/\(\s*/g, '( ').replace(/\s*\)/g, ' )')
 
-const isPureNumeric = node => {
+const isPureNumeric = (node, scope = null, pureVars = null) => {
   if(t.isNumericLiteral(node)) return true
+  if(t.isIdentifier(node)) {
+    if(pureVars && pureVars.has(node.name)) return true
+    if(scope) {
+      const binding = scope.getBinding(node.name)
+      if(binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init, scope, pureVars)) {
+        return true
+      }
+    }
+    return false
+  }
   if(t.isBinaryExpression(node) && opMap[node.operator])
-    return isPureNumeric(node.left) && isPureNumeric(node.right)
+    return isPureNumeric(node.left, scope, pureVars) && isPureNumeric(node.right, scope, pureVars)
   if(t.isUnaryExpression(node) && node.operator === '-')
-    return isPureNumeric(node.argument)
+    return isPureNumeric(node.argument, scope, pureVars)
   if(t.isParenthesizedExpression(node))
-    return isPureNumeric(node.expression)
+    return isPureNumeric(node.expression, scope, pureVars)
   return false
 }
 
@@ -304,7 +314,7 @@ const transformExpression = (
     node.left.operator === '*' &&
     !(t.isBinaryExpression(node.left.left) && node.left.left.operator === '%')
   ) {
-    if(isPureNumeric(node)) return node
+    if(isPureNumeric(node, scope, pureVars)) return node
     const leftExpr = transformExpression(node.left.left, true, scope, pureVars, effectiveForceTSL, directives, state)
     const modTarget = transformExpression(node.left.right, true, scope, pureVars, effectiveForceTSL, directives, state)
     const modArg = transformExpression(node.right, false, scope, pureVars, effectiveForceTSL, directives, state)
@@ -326,7 +336,7 @@ const transformExpression = (
   }
 
   if(t.isBinaryExpression(node) && opMap[node.operator]) {
-    if(isPureNumeric(node)) return node
+    if(isPureNumeric(node, scope, pureVars)) return node
     if(t.isMemberExpression(node.left) && t.isIdentifier(node.left.object, {name: 'Math'}))
       return node
     const left = transformExpression(node.left, true, scope, pureVars, effectiveForceTSL, directives, state)
@@ -342,7 +352,7 @@ const transformExpression = (
   }
 
   if(t.isBinaryExpression(node) && comparisonOpMap[node.operator]) {
-    if(isPureNumeric(node.left) && isPureNumeric(node.right)) return node
+    if(isPureNumeric(node.left, scope, pureVars) && isPureNumeric(node.right, scope, pureVars)) return node
     if(!effectiveForceTSL && !shouldTransformToTSL(node)) {
       const left = transformExpression(node.left, true, scope, pureVars, effectiveForceTSL, directives, state)
       const right = transformExpression(node.right, false, scope, pureVars, effectiveForceTSL, directives, state)
@@ -426,7 +436,7 @@ const transformExpression = (
     }
     if(t.isIdentifier(node.argument)){
       const binding = scope && scope.getBinding(node.argument.name)
-      const isPure = (binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init))
+      const isPure = (binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init, scope, pureVars))
         || (pureVars && pureVars.has(node.argument.name))
       if(isPure){
         const newArg = t.callExpression(t.identifier('float'), [node.argument])
@@ -585,7 +595,7 @@ const transformExpression = (
   }
   if(isLeftmost && t.isIdentifier(node) && node.name !== 'Math'){
     const binding = scope && scope.getBinding(node.name)
-    if((binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init))
+    if((binding && t.isVariableDeclarator(binding.path.node) && isPureNumeric(binding.path.node.init, scope, pureVars))
        || (pureVars && pureVars.has(node.name))) {
       markChanged(state)
       return inheritComments(t.callExpression(t.identifier('float'), [node]), node)
@@ -626,17 +636,17 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
           if (decl.init)
             decl.init = t.isArrowFunctionExpression(decl.init)
               ? transformExpression(decl.init, true, scope, localPure, stmtForceTSL, directives, state)
-              : (isPureNumeric(decl.init)
+              : (isPureNumeric(decl.init, scope, localPure)
                   ? decl.init
                   : transformExpression(decl.init, true, scope, localPure, stmtForceTSL, directives, state))
         })
       }
       else if (t.isReturnStatement(stmt) && stmt.argument)
-        stmt.argument = isPureNumeric(stmt.argument)
+        stmt.argument = isPureNumeric(stmt.argument, scope, localPure)
           ? stmt.argument
           : transformExpression(stmt.argument, true, scope, localPure, true, directives, state)
       else if (t.isExpressionStatement(stmt))
-        stmt.expression = isPureNumeric(stmt.expression)
+        stmt.expression = isPureNumeric(stmt.expression, scope, localPure)
           ? stmt.expression
           : transformExpression(stmt.expression, true, scope, localPure, stmtForceTSL, directives, state)
       else if (t.isForStatement(stmt)) {
@@ -699,7 +709,7 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
     })
     return body
   }
-  return isPureNumeric(body)
+  return isPureNumeric(body, scope, pureVars)
     ? body
     : transformExpression(body, true, scope, pureVars, true, directives, state)
 }
