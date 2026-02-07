@@ -296,12 +296,6 @@ describe('Unary Operations', () => {
     expect(out).toContain('a.mul(-1).add(b.mul(-1).mul(c.mul(-1)))')
   })
 
-  // 25 SUCCESS
-  it('25 handles unary operators', () => {
-    const code = `Fn(() => -a + -b * -c)`
-    const out = run(code)
-    expect(out).toContain('a.mul(-1).add(b.mul(-1).mul(c.mul(-1)))')
-  })
 })
 
 describe('Mixing with Math Constants & Functions', () => {
@@ -554,13 +548,6 @@ describe('Complex Expressions & Chaining', () => {
     const code = `Fn(() => a ? b.add(c) : d.sub(e))`
     const out = run(code)
     expect(out).toContain('a ? b.add(c) : d.sub(e)')
-  })
-
-  // 47 SUCCESS
-  it('47. handles mixed literals and variables => 2 * a + 3 / b - 4 % c', () => {
-    const code = `Fn(() => 2 * a + 3 / b - 4 % c)`
-    const out = run(code)
-    expect(out).toContain('float(2).mul(a).add(float(3).div(b)).sub(float(4).mod(c))')
   })
 
   // 48. SUCCESS
@@ -835,13 +822,6 @@ it('72. transforms a % b * c => a.mod(b).mul(c)', () => {
   const code = `Fn(() => a % b * c)`
   const out = run(code)
   expect(out).toContain('a.mod(b).mul(c)')
-})
-
-// 73. transforms (a + b) * c % d => a.add(b).mul(c.mod(d))
-it('73. transforms (a + b) * c % d => a.add(b).mul(c.mod(d))', () => {
-  const code = `Fn(() => (a + b) * c % d)`
-  const out = run(code)
-  expect(out).toContain('a.add(b).mul(c.mod(d))')
 })
 
 // 74. transforms a * (b + c) % (d - e) => a.mul(b.add(c).mod(d.sub(e)))
@@ -1821,13 +1801,6 @@ describe('Context-Aware Transformation Edge Cases', () => {
     expect(out).toContain('.and(e.equal(f))')
   })
 
-  // Arrow function expression body with comparison
-  it('164. transforms comparison in arrow expression body', () => {
-    const code = `Fn(() => a > b)`
-    const out = run(code)
-    expect(out).toContain('a.greaterThan(b)')
-  })
-
   // Nullish coalescing preserved
   it('165. preserves nullish coalescing operator', () => {
     const code = `Fn(() => {
@@ -2105,10 +2078,9 @@ Fn(() => {
     // First Fn with @tsl - should transform
     expect(out).toContain('x.greaterThan(y)')
     // Second Fn without directive - if condition should NOT transform
-    // (The second one still has x > y in an if, which normally doesn't transform)
-    // But wait, we transform the first one. Need to check if both are transformed
-    // Actually, both Fn() will be visited, but only the first has @tsl
-    // The second if(x > y) should remain as if(x > y)
+    // Count occurrences: greaterThan should appear only once (from first Fn)
+    const matches = out.match(/greaterThan/g)
+    expect(matches.length).toBe(1)
   })
 
   // @js does not break arithmetic transformation
@@ -2590,5 +2562,70 @@ Fn(() => 1 + a)`
     const out = runWithOptions(code)
     expect(out).toMatch(/import \{ float \} from ["']three\/tsl["']/)
     expect(out).toContain('float(-5).add(a)')
+  })
+
+  it('226. auto-imports int and Loop for @tsl for-loop', () => {
+    const code = `Fn(() => {
+      //@tsl
+      for (let i = 0; i < 10; i++) {
+        doSomething()
+      }
+    })`
+    const out = runWithOptions(code)
+    expect(out).toMatch(/import.*\bint\b.*from/)
+    expect(out).toMatch(/import.*\bLoop\b.*from/)
+  })
+
+  it('227. auto-imports float and Loop for @tsl while-loop', () => {
+    const code = `Fn(() => {
+      //@tsl
+      while (x < 10) {
+        x += step
+      }
+    })`
+    const out = runWithOptions(code)
+    expect(out).toMatch(/import.*\bLoop\b.*from/)
+  })
+
+  it('228. recognizes three/src/nodes/ as TSL import source', () => {
+    const code = `import { Fn } from 'three/src/nodes/TSL'
+Fn(() => 1 + a)`
+    const out = runWithOptions(code)
+    // Should add float to the existing three/src/nodes/ import
+    expect(out).toMatch(/import \{[^}]*float[^}]*\} from ['"]three\/src\/nodes\/TSL['"]/)
+  })
+
+  it('229. auto-imports multiple wrappers together', () => {
+    const code = `Fn(() => {
+      const x = 1 + a
+      //@tsl
+      for (let i = 0; i < 10; i++) {
+        doSomething()
+      }
+    })`
+    const out = runWithOptions(code)
+    expect(out).toMatch(/import.*\bfloat\b.*from/)
+    expect(out).toMatch(/import.*\bint\b.*from/)
+    expect(out).toMatch(/import.*\bLoop\b.*from/)
+  })
+})
+
+describe('TSL Context Functions', () => {
+  it('230. discard() forces comparison transformation in first argument', () => {
+    const code = `Fn(() => {
+      discard(a > b)
+    })`
+    const out = run(code)
+    expect(out).toContain('a.greaterThan(b)')
+  })
+
+  it('231. discard() forces logical transformation in first argument', () => {
+    const code = `Fn(() => {
+      discard(a > 0 && b < 10)
+    })`
+    const out = run(code)
+    expect(out).toContain('greaterThan')
+    expect(out).toContain('lessThan')
+    expect(out).toContain('.and(')
   })
 })

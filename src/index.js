@@ -208,7 +208,7 @@ const isPureNumeric = (node, scope = null, pureVars = null) => {
 }
 
 const isFloatCall = node =>
-  t.isCallExpression(node) && t.isIdentifier(node.callee, {name: 'float'})
+  t.isCallExpression(node) && t.isIdentifier(node.callee) && node.callee.name === 'float'
 
 const inheritComments = (newNode, oldNode) => {
   newNode.leadingComments = oldNode.leadingComments
@@ -221,10 +221,10 @@ const markChanged = state => {
   if (state) state.changed = true
 }
 
-const containsTSLOperation = node => {
+const containsTSLOperation = (node, scope = null, pureVars = null) => {
   if (!node) return false
   if (t.isBinaryExpression(node) && opMap[node.operator]) {
-    return !isPureNumeric(node)
+    return !isPureNumeric(node, scope, pureVars)
   }
   if (t.isAssignmentExpression(node) && assignOpMap[node.operator]) {
     return true
@@ -237,26 +237,26 @@ const containsTSLOperation = node => {
     if (tslConstructorsSet.has(node.callee.name)) return true
   }
   if (t.isBinaryExpression(node)) {
-    return containsTSLOperation(node.left) || containsTSLOperation(node.right)
+    return containsTSLOperation(node.left, scope, pureVars) || containsTSLOperation(node.right, scope, pureVars)
   }
   if (t.isLogicalExpression(node)) {
-    return containsTSLOperation(node.left) || containsTSLOperation(node.right)
+    return containsTSLOperation(node.left, scope, pureVars) || containsTSLOperation(node.right, scope, pureVars)
   }
   if (t.isUnaryExpression(node)) {
-    return containsTSLOperation(node.argument)
+    return containsTSLOperation(node.argument, scope, pureVars)
   }
   if (t.isParenthesizedExpression(node)) {
-    return containsTSLOperation(node.expression)
+    return containsTSLOperation(node.expression, scope, pureVars)
   }
   return false
 }
 
-const shouldTransformToTSL = node => {
+const shouldTransformToTSL = (node, scope = null, pureVars = null) => {
   if (t.isBinaryExpression(node) || t.isLogicalExpression(node)) {
-    return containsTSLOperation(node.left) || containsTSLOperation(node.right)
+    return containsTSLOperation(node.left, scope, pureVars) || containsTSLOperation(node.right, scope, pureVars)
   }
   if (t.isUnaryExpression(node)) {
-    return containsTSLOperation(node.argument)
+    return containsTSLOperation(node.argument, scope, pureVars)
   }
   return false
 }
@@ -286,12 +286,12 @@ const parseForLoop = stmt => {
   if (!stmt.test || !t.isBinaryExpression(stmt.test)) return null
   const { operator, left, right } = stmt.test
   if (!['<', '<=', '>', '>='].includes(operator)) return null
-  if (!t.isIdentifier(left, { name: iteratorName })) return null
+  if (!t.isIdentifier(left) || left.name !== iteratorName) return null
 
   if (!stmt.update) return null
   const isValidUpdate = t.isUpdateExpression(stmt.update) &&
     ['++', '--'].includes(stmt.update.operator) &&
-    t.isIdentifier(stmt.update.argument, { name: iteratorName })
+    t.isIdentifier(stmt.update.argument) && stmt.update.argument.name === iteratorName
   if (!isValidUpdate) return null
 
   return { iteratorName, startValue, endValue: right, operator }
@@ -434,7 +434,7 @@ const transformExpression = (
 
   if(t.isBinaryExpression(node) && opMap[node.operator]) {
     if(isPureNumeric(node, scope, pureVars)) return node
-    if(t.isMemberExpression(node.left) && t.isIdentifier(node.left.object, {name: 'Math'}))
+    if(t.isMemberExpression(node.left) && t.isIdentifier(node.left.object) && node.left.object.name === 'Math')
       return node
     const left = transformExpression(node.left, true, scope, pureVars, effectiveForceTSL, directives, state)
     const right = transformExpression(node.right, false, scope, pureVars, effectiveForceTSL, directives, state)
@@ -450,7 +450,7 @@ const transformExpression = (
 
   if(t.isBinaryExpression(node) && comparisonOpMap[node.operator]) {
     if(isPureNumeric(node.left, scope, pureVars) && isPureNumeric(node.right, scope, pureVars)) return node
-    if(!effectiveForceTSL && !shouldTransformToTSL(node)) {
+    if(!effectiveForceTSL && !shouldTransformToTSL(node, scope, pureVars)) {
       const left = transformExpression(node.left, true, scope, pureVars, effectiveForceTSL, directives, state)
       const right = transformExpression(node.right, false, scope, pureVars, effectiveForceTSL, directives, state)
       if(left === node.left && right === node.right) return node
@@ -469,7 +469,7 @@ const transformExpression = (
   }
 
   if(t.isLogicalExpression(node) && logicalOpMap[node.operator]) {
-    if(!effectiveForceTSL && !shouldTransformToTSL(node)) {
+    if(!effectiveForceTSL && !shouldTransformToTSL(node, scope, pureVars)) {
       const left = transformExpression(node.left, true, scope, pureVars, effectiveForceTSL, directives, state)
       const right = transformExpression(node.right, false, scope, pureVars, effectiveForceTSL, directives, state)
       if(left === node.left && right === node.right) return node
@@ -561,7 +561,7 @@ const transformExpression = (
   }
 
   if(t.isUnaryExpression(node) && node.operator === '!') {
-    if(!effectiveForceTSL && !shouldTransformToTSL(node)) {
+    if(!effectiveForceTSL && !shouldTransformToTSL(node, scope, pureVars)) {
       const arg = transformExpression(node.argument, true, scope, pureVars, effectiveForceTSL, directives, state)
       if(arg === node.argument) return node
       markChanged(state)
@@ -614,7 +614,7 @@ const transformExpression = (
   }
 
   if(t.isMemberExpression(node)){
-    if(t.isIdentifier(node.object, {name:'Math'}))
+    if(t.isIdentifier(node.object) && node.object.name === 'Math')
       return node
     const newObj = transformExpression(node.object, false, scope, pureVars, effectiveForceTSL, directives, state)
     let newProp
@@ -709,7 +709,7 @@ const transformExpression = (
 const transformBody = (body, scope, pureVars = new Set(), directives = null, fnForceTSL = false, state = null) => {
   if (t.isBlockStatement(body)) {
     const localPure = new Set(pureVars)
-    body.body.forEach(stmt => {
+    body.body.forEach((stmt, stmtIdx) => {
       const stmtDirective = getDirectiveForNode(stmt, directives)
       let stmtForceTSL = fnForceTSL
       if (stmtDirective === 'js') stmtForceTSL = false
@@ -754,8 +754,7 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
         if (stmtDirective === 'tsl') {
           const loopExpr = transformForLoopToTSL(stmt, scope, localPure, directives, fnForceTSL, state)
           if (loopExpr) {
-            const idx = body.body.indexOf(stmt)
-            body.body[idx] = inheritComments(t.expressionStatement(loopExpr), stmt)
+            body.body[stmtIdx] = inheritComments(t.expressionStatement(loopExpr), stmt)
             return
           }
         }
@@ -769,8 +768,7 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
       else if (t.isWhileStatement(stmt)) {
         if (stmtDirective === 'tsl') {
           const loopExpr = transformWhileLoopToTSL(stmt, scope, localPure, directives, fnForceTSL, state)
-          const idx = body.body.indexOf(stmt)
-          body.body[idx] = inheritComments(t.expressionStatement(loopExpr), stmt)
+          body.body[stmtIdx] = inheritComments(t.expressionStatement(loopExpr), stmt)
           return
         }
         if (stmt.test) stmt.test = transformExpression(stmt.test, true, scope, localPure, stmtForceTSL, directives, state)
@@ -781,8 +779,7 @@ const transformBody = (body, scope, pureVars = new Set(), directives = null, fnF
       else if (t.isDoWhileStatement(stmt)) {
         if (stmtDirective === 'tsl') {
           const [iifeStmt, loopStmt] = transformDoWhileToTSL(stmt, scope, localPure, directives, fnForceTSL, state)
-          const idx = body.body.indexOf(stmt)
-          body.body.splice(idx, 1, inheritComments(iifeStmt, stmt), loopStmt)
+          body.body.splice(stmtIdx, 1, inheritComments(iifeStmt, stmt), loopStmt)
           return
         }
         if (stmt.test) stmt.test = transformExpression(stmt.test, true, scope, localPure, stmtForceTSL, directives, state)
@@ -850,7 +847,7 @@ export default function TSLOperatorPlugin({logs = true, autoImportMissingTSL = t
 
       traverse(ast, {
         CallExpression(path) {
-          if(!t.isIdentifier(path.node.callee, {name: 'Fn'})) return
+          if(!t.isIdentifier(path.node.callee) || path.node.callee.name !== 'Fn') return
           const fnArgPath = path.get('arguments.0')
           if(!fnArgPath || !fnArgPath.isArrowFunctionExpression() || fnArgPath.node._tslTransformed) return
 

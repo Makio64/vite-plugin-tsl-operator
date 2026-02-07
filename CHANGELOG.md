@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.1] - 2026-02-07
+
+### Fixed
+- `containsTSLOperation` and `shouldTransformToTSL` now receive `scope` and `pureVars`, fixing incorrect TSL transformations of comparison/logical operators involving pure-numeric variables
+
+### Improved performance
+
 ## [1.8.0] - 2026-01-30
 
 ### Added
