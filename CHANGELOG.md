@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.2] - 2026-02-21
+
+### Fixed
+- `//@js` directive now also suppresses arithmetic operator transformation (`+`, `-`, `*`, `/`, `%`) on the annotated line, in addition to the already-guarded comparison, logical, and unary operators. Previously, `aa/2` on a `//@js`-annotated line would still be transformed to `aa.div(2)`, causing a runtime error when `aa` held a plain JS value (e.g. result of `Math.floor`).
+
 ## [1.8.1] - 2026-02-07
 
 ### Fixed

@@ -2083,8 +2083,8 @@ Fn(() => {
     expect(matches.length).toBe(1)
   })
 
-  // @js does not break arithmetic transformation
-  it('186. @js only affects comparison/logical, arithmetic still works', () => {
+  // @js preserves all operators on the annotated line
+  it('186. @js preserves arithmetic operators on the annotated line', () => {
     const code = `Fn(() => {
   //@js
   const result = (a > b) ? x + y : z + w
@@ -2092,8 +2092,8 @@ Fn(() => {
 })`
     const out = run(code)
     expect(out).toContain('a > b')  // comparison preserved by @js
-    expect(out).toContain('x.add(y)')  // arithmetic still transforms
-    expect(out).toContain('z.add(w)')  // arithmetic still transforms
+    expect(out).toContain('x + y')  // arithmetic also preserved by @js
+    expect(out).toContain('z + w')  // arithmetic also preserved by @js
   })
 
   // @tsl on for loop
@@ -2203,6 +2203,29 @@ Fn(() => {
     expect(out).toContain('return a.add(b)')
     expect(out).toContain('return c.mul(d)')
     expect(out).toContain('return e.sub(f)')
+  })
+
+  // Math.floor with pure numeric argument
+  it('194b. Math.floor with pure numeric argument is preserved unchanged', () => {
+    const code = `Fn(() => {
+  const aa = Math.floor(10/3)
+  return aa
+})`
+    const out = run(code)
+    expect(out).toContain('Math.floor(10/3)')
+  })
+
+  // //@js prevents arithmetic transformation (real-world: Math result used as JS number)
+  it('194c. @js prevents arithmetic transformation on the annotated line', () => {
+    const code = `Fn(() => {
+  const aa = Math.floor(10/3)
+  //@js
+  console.log(aa/2)
+})`
+    const out = run(code)
+    expect(out).toContain('Math.floor(10/3)')  // Math.floor preserved
+    expect(out).toContain('console.log(aa/2)')  // arithmetic NOT transformed due to @js
+    expect(out).not.toContain('aa.div')
   })
 })
 

@@ -436,6 +436,7 @@ const transformExpression = (
     if(isPureNumeric(node, scope, pureVars)) return node
     if(t.isMemberExpression(node.left) && t.isIdentifier(node.left.object) && node.left.object.name === 'Math')
       return node
+    if(nodeDirective === 'js') return node
     const left = transformExpression(node.left, true, scope, pureVars, effectiveForceTSL, directives, state)
     const right = transformExpression(node.right, false, scope, pureVars, effectiveForceTSL, directives, state)
     markChanged(state)

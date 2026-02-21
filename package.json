@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-tsl-operator",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "A Vite plugin to let you use standard JS operators (+, -, *, /, %, >, <, ==, &&, ||, !) with TSL Nodes in your Three.js project.",
   "main": "src/index.js",
   "type": "module",
@@ -31,8 +31,8 @@
     "@vitest/browser": "^4.0.18",
     "@vitest/browser-playwright": "^4.0.18",
     "playwright": "^1.58.2",
-    "three": "^0.182.0",
+    "three": "^0.183.1",
     "vitest": "^4.0.18"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.30.1"
 }
