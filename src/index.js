@@ -8,9 +8,10 @@ const generate = require('@babel/generator').default
 
 import * as t from '@babel/types'
 
-const opMap = { '+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '%': 'mod' }
+const opMap = { '+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '%': 'mod', '**': 'pow' }
+const assignableOps = ['+', '-', '*', '/', '%']
 const assignOpMap = Object.fromEntries(
-  Object.entries(opMap).map(([op, fn]) => [`${op}=`, `${fn}Assign`])
+  assignableOps.map(op => [`${op}=`, `${opMap[op]}Assign`])
 )
 
 const comparisonOpMap = {
@@ -46,6 +47,7 @@ const tslMethodsSet = new Set([
   'mul',
   'div',
   'mod',
+  'pow',
   'greaterThan',
   'lessThan',
   'greaterThanEqual',
@@ -183,9 +185,19 @@ const getDirectiveForNode = (node, directives) => {
   return directives.get(line) || directives.get(line - 1) || null
 }
 
+const applyDirective = (directive, current) => {
+  if (directive === 'js') return false
+  if (directive === 'tsl') return true
+  return current
+}
+
 const prettifyLine = line =>
   line.replace(/\(\s*/g, '( ').replace(/\s*\)/g, ' )')
 
+/**
+ * True when `node` is made only of numeric literals, pure-numeric variables, and pure arithmetic.
+ * Uses Babel scope to follow variable bindings and a pureVars Set for locally-declared pure names.
+ */
 const isPureNumeric = (node, scope = null, pureVars = null) => {
   if(t.isNumericLiteral(node)) return true
   if(t.isIdentifier(node)) {
@@ -221,6 +233,11 @@ const markChanged = state => {
   if (state) state.changed = true
 }
 
+/**
+ * True when `node` contains any TSL-side operation (arithmetic on a non-pure operand,
+ * a TSL method call, or a TSL constructor call). Used to decide whether comparison/logical
+ * operators should transform without an explicit //@tsl directive.
+ */
 const containsTSLOperation = (node, scope = null, pureVars = null) => {
   if (!node) return false
   if (t.isBinaryExpression(node) && opMap[node.operator]) {
@@ -307,14 +324,14 @@ const transformForLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, st
   const numericType = (startType === 'float' || endType === 'float') ? 'float' : 'int'
 
   const configObj = t.objectExpression([
-    t.objectProperty(t.identifier('start'), wrapInNumericType(t.cloneNode(startValue), numericType, state)),
-    t.objectProperty(t.identifier('end'), wrapInNumericType(t.cloneNode(endValue), numericType, state)),
+    t.objectProperty(t.identifier('start'), wrapInNumericType(startValue, numericType, state)),
+    t.objectProperty(t.identifier('end'), wrapInNumericType(endValue, numericType, state)),
     t.objectProperty(t.identifier('type'), t.stringLiteral(numericType)),
     t.objectProperty(t.identifier('condition'), t.stringLiteral(operator)),
     t.objectProperty(t.identifier('name'), t.stringLiteral(iteratorName))
   ])
 
-  const transformedBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
+  const transformedBody = transformBody(stmt.body, scope, pureVars, directives, fnForceTSL, state)
   const callback = t.arrowFunctionExpression(
     [t.objectPattern([t.objectProperty(t.identifier(iteratorName), t.identifier(iteratorName), false, true)])],
     transformedBody
@@ -327,7 +344,7 @@ const transformForLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, st
 
 const transformWhileLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, state) => {
   const transformedCondition = transformExpression(stmt.test, true, scope, pureVars, true, directives, state)
-  const transformedBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
+  const transformedBody = transformBody(stmt.body, scope, pureVars, directives, fnForceTSL, state)
   const callback = t.arrowFunctionExpression([], transformedBody)
   markChanged(state)
   if (state?.usedWrappers) state.usedWrappers.add('Loop')
@@ -335,12 +352,11 @@ const transformWhileLoopToTSL = (stmt, scope, pureVars, directives, fnForceTSL, 
 }
 
 const transformDoWhileToTSL = (stmt, scope, pureVars, directives, fnForceTSL, state) => {
-  const initialBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
-  const iife = t.callExpression(t.arrowFunctionExpression([], initialBody), [])
+  const transformedBody = transformBody(stmt.body, scope, pureVars, directives, fnForceTSL, state)
+  const iife = t.callExpression(t.arrowFunctionExpression([], t.cloneNode(transformedBody, true)), [])
 
   const transformedCondition = transformExpression(stmt.test, true, scope, pureVars, true, directives, state)
-  const loopBody = transformBody(t.cloneNode(stmt.body, true), scope, pureVars, directives, fnForceTSL, state)
-  const loopCall = t.callExpression(t.identifier('Loop'), [transformedCondition, t.arrowFunctionExpression([], loopBody)])
+  const loopCall = t.callExpression(t.identifier('Loop'), [transformedCondition, t.arrowFunctionExpression([], transformedBody)])
 
   markChanged(state)
   if (state?.usedWrappers) state.usedWrappers.add('Loop')
@@ -388,6 +404,13 @@ const transformPattern = (node, scope, pureVars, state, forceTSL = false, direct
   return node
 }
 
+/**
+ * Walk an expression node, returning the TSL-transformed equivalent.
+ * Returns the original node reference when nothing changed so callers can detect no-op.
+ * Params: node, isLeftmost (leftmost operand gets float() wrapping), scope (Babel scope),
+ * pureVars (names known pure-numeric), forceTSL (skip opt-in gating), directives (line→'tsl'|'js'),
+ * state ({changed, usedWrappers}).
+ */
 const transformExpression = (
   node,
   isLeftmost = true,
@@ -400,9 +423,7 @@ const transformExpression = (
   if(isFloatCall(node)) return node
 
   const nodeDirective = getDirectiveForNode(node, directives)
-  let effectiveForceTSL = forceTSL
-  if (nodeDirective === 'js') effectiveForceTSL = false
-  else if (nodeDirective === 'tsl') effectiveForceTSL = true
+  const effectiveForceTSL = applyDirective(nodeDirective, forceTSL)
 
   if (
     t.isBinaryExpression(node) &&
@@ -489,6 +510,7 @@ const transformExpression = (
   }
 
   if(t.isLogicalExpression(node)) {
+    // Nullish coalescing (??) — no TSL equivalent, recurse into operands and preserve
     const left = transformExpression(node.left, true, scope, pureVars, effectiveForceTSL, directives, state)
     const right = transformExpression(node.right, true, scope, pureVars, effectiveForceTSL, directives, state)
     if(left === node.left && right === node.right) return node
@@ -586,10 +608,40 @@ const transformExpression = (
     return inheritComments(t.parenthesizedExpression(inner), node)
   }
 
+  if(t.isTSAsExpression?.(node) || t.isTSTypeAssertion?.(node) || t.isTSSatisfiesExpression?.(node) || t.isTSNonNullExpression?.(node)) {
+    const inner = transformExpression(node.expression, isLeftmost, scope, pureVars, effectiveForceTSL, directives, state)
+    if(inner === node.expression) return node
+    markChanged(state)
+    node.expression = inner
+    return node
+  }
+
+  if(t.isUpdateExpression(node) && (node.operator === '++' || node.operator === '--')) {
+    if(nodeDirective === 'js' || !effectiveForceTSL) return node
+    if(t.isIdentifier(node.argument) && isPureNumeric(node.argument, scope, pureVars)) return node
+    const method = node.operator === '++' ? 'addAssign' : 'subAssign'
+    markChanged(state)
+    return inheritComments(
+      t.callExpression(
+        t.memberExpression(node.argument, t.identifier(method)),
+        [t.numericLiteral(1)]
+      ),
+      node
+    )
+  }
+
   if(t.isConditionalExpression(node)){
     const newTest = transformExpression(node.test, false, scope, pureVars, effectiveForceTSL, directives, state)
     const newConsequent = transformExpression(node.consequent, false, scope, pureVars, effectiveForceTSL, directives, state)
     const newAlternate = transformExpression(node.alternate, false, scope, pureVars, effectiveForceTSL, directives, state)
+    if(nodeDirective === 'tsl') {
+      if (state?.usedWrappers) state.usedWrappers.add('select')
+      markChanged(state)
+      return inheritComments(
+        t.callExpression(t.identifier('select'), [newTest, newConsequent, newAlternate]),
+        node
+      )
+    }
     if(newTest === node.test && newConsequent === node.consequent && newAlternate === node.alternate) return node
     markChanged(state)
     return inheritComments(t.conditionalExpression(newTest, newConsequent, newAlternate), node)
@@ -707,14 +759,16 @@ const transformExpression = (
   return node
 }
 
+/**
+ * Walk a function body (BlockStatement or expression), mutating statements in place
+ * and dispatching each to transformExpression. Returns the same body reference.
+ */
 const transformBody = (body, scope, pureVars = new Set(), directives = null, fnForceTSL = false, state = null) => {
   if (t.isBlockStatement(body)) {
     const localPure = new Set(pureVars)
     body.body.forEach((stmt, stmtIdx) => {
       const stmtDirective = getDirectiveForNode(stmt, directives)
-      let stmtForceTSL = fnForceTSL
-      if (stmtDirective === 'js') stmtForceTSL = false
-      else if (stmtDirective === 'tsl') stmtForceTSL = true
+      const stmtForceTSL = applyDirective(stmtDirective, fnForceTSL)
 
       if (t.isIfStatement(stmt)) {
         stmt.test = transformExpression(stmt.test, false, scope, localPure, stmtForceTSL, directives, state)
@@ -822,25 +876,35 @@ function shouldLog(logs, filename) {
   return false
 }
 
-const defaultParserPlugins = [
-  'jsx',
-  'typescript',
-  'classProperties',
-  'decorators-legacy',
-  'importMeta',
-  'topLevelAwait'
-]
+const baseParserPlugins = ['classProperties', 'decorators-legacy', 'importMeta', 'topLevelAwait']
+const parserPluginsByExt = {
+  js:  baseParserPlugins,
+  jsx: ['jsx', ...baseParserPlugins],
+  ts:  ['typescript', ...baseParserPlugins],
+  tsx: ['jsx', 'typescript', ...baseParserPlugins]
+}
 
+const operatorProbe = /[-+*/%]|[<>!=]=?|&&|\|\||\*\*|\+\+|--/
+
+/**
+ * Vite plugin: transforms JS operators inside Fn() blocks to TSL method calls.
+ * Options: logs (true|false|string|string[]|RegExp), autoImportMissingTSL (bool),
+ * importSource (string — target for auto-injected imports, default 'three/tsl').
+ */
 export default function TSLOperatorPlugin({logs = true, autoImportMissingTSL = true, importSource = 'three/tsl'} = {}) {
   return {
     name: 'tsl-operator-plugin',
     transform(code, id) {
       const cleanId = id ? id.split('?')[0].split('#')[0] : id
-      if(!/\.(js|ts)x?$/.test(cleanId) || cleanId.includes('node_modules')) return null
+      const extMatch = cleanId && cleanId.match(/\.(jsx?|tsx?)$/)
+      if(!extMatch || cleanId.includes('node_modules')) return null
       if(!code.includes('Fn(')) return null
+      if(!operatorProbe.test(code)) return null
 
       const filename = path.basename(cleanId)
-      const ast = parse(code, {sourceType: 'module', plugins: defaultParserPlugins})
+      const ext = extMatch[1]
+      const plugins = parserPluginsByExt[ext] || parserPluginsByExt.js
+      const ast = parse(code, {sourceType: 'module', plugins})
       const directives = parseDirectives(code)
 
       let hasTransformations = false
@@ -899,7 +963,7 @@ export default function TSLOperatorPlugin({logs = true, autoImportMissingTSL = t
         addMissingImports(ast, missingImports, existingImports, importSource)
       }
 
-      const output = generate(ast, {retainLines: true}, code)
+      const output = generate(ast, {retainLines: true, sourceMaps: true, sourceFileName: cleanId}, code)
       return {code: output.code, map: output.map}
     }
   }

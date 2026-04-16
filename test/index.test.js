@@ -2652,3 +2652,308 @@ describe('TSL Context Functions', () => {
     expect(out).toContain('.and(')
   })
 })
+
+describe('Power operator (**)', () => {
+  it('232. transforms a ** b => a.pow(b)', () => {
+    const out = run(`Fn(() => a ** b)`)
+    expect(out).toContain('a.pow(b)')
+    expect(out).not.toContain('**')
+  })
+
+  it('233. transforms a ** 2 => a.pow(2)', () => {
+    const out = run(`Fn(() => a ** 2)`)
+    expect(out).toContain('a.pow(2)')
+  })
+
+  it('234. preserves pure numeric 2 ** 3', () => {
+    const out = run(`Fn(() => {
+      const k = 2 ** 3
+      return x.mul(k)
+    })`)
+    expect(out).toContain('2 ** 3')
+    expect(out).not.toContain('.pow(')
+  })
+
+  it('235. transforms chained power x.add(1) ** 2', () => {
+    const out = run(`Fn(() => x.add(1) ** 2)`)
+    expect(out).toContain('x.add(1).pow(2)')
+  })
+
+  it('236. power does not generate powAssign for **=', () => {
+    const out = run(`Fn(() => { x **= 2 })`)
+    expect(out).not.toContain('powAssign')
+  })
+})
+
+describe('Update expressions (++ / --)', () => {
+  it('237. preserves i++ without //@tsl directive', () => {
+    const out = run(`Fn(() => {
+      let i = 0
+      i++
+    })`)
+    expect(out).toContain('i++')
+    expect(out).not.toContain('addAssign')
+  })
+
+  it('238. transforms i++ under //@tsl directive', () => {
+    const out = run(`Fn(() => {
+      //@tsl
+      i++
+    })`)
+    expect(out).toContain('i.addAssign(1)')
+  })
+
+  it('239. transforms --i under //@tsl directive', () => {
+    const out = run(`Fn(() => {
+      //@tsl
+      --i
+    })`)
+    expect(out).toContain('i.subAssign(1)')
+  })
+
+  it('240. preserves iterator i++ inside plain for loop body', () => {
+    const out = run(`Fn(() => {
+      for (let i = 0; i < 10; i++) {
+        i++
+      }
+    })`)
+    expect(out).toContain('i++')
+  })
+
+  it('241. //@js directive preserves i++', () => {
+    const out = run(`Fn(() => {
+      //@js
+      i++
+    })`)
+    expect(out).toContain('i++')
+    expect(out).not.toContain('addAssign')
+  })
+})
+
+describe('Ternary -> select() (//@tsl only)', () => {
+  it('242. preserves ternary without //@tsl', () => {
+    const out = run(`Fn(() => a > b ? c : d)`)
+    expect(out).toContain('?')
+    expect(out).not.toContain('select(')
+  })
+
+  it('243. transforms ternary to select() under //@tsl', () => {
+    const out = run(`Fn(() => {
+      //@tsl
+      const x = a > b ? c : d
+      return x
+    })`)
+    expect(out).toContain('select(')
+    expect(out).toContain('a.greaterThan(b)')
+  })
+
+  it('244. auto-imports select when ternary is transformed', () => {
+    const out = run(`import { Fn } from 'three/tsl'
+Fn(() => {
+  //@tsl
+  return a > b ? c : d
+})`)
+    expect(out).toContain('select')
+    expect(out).toMatch(/import[^;]*select[^;]*from\s+['"]three\/tsl['"]/)
+  })
+
+  it('245. ternary inside smoothstep stays as ternary (no //@tsl)', () => {
+    const out = run(`Fn(() => smoothstep(0, 1, x > 0.5 ? a : b))`)
+    expect(out).toContain('?')
+    expect(out).not.toContain('select(')
+  })
+})
+
+describe('Vite-specific module IDs', () => {
+  it('246. handles query strings (?raw) on file id', () => {
+    const res = runRaw(`Fn(() => a + b)`, 'shader.js?raw')
+    expect(res).not.toBeNull()
+    expect(res.code).toContain('a.add(b)')
+  })
+
+  it('247. handles hash suffix (#frag) on file id', () => {
+    const res = runRaw(`Fn(() => a + b)`, 'shader.js#frag')
+    expect(res).not.toBeNull()
+    expect(res.code).toContain('a.add(b)')
+  })
+
+  it('248. skips node_modules files', () => {
+    const res = runRaw(`Fn(() => a + b)`, 'node_modules/lib/foo.js')
+    expect(res).toBeNull()
+  })
+
+  it('249. skips non-JS/TS files', () => {
+    const res = runRaw(`Fn(() => a + b)`, 'style.css')
+    expect(res).toBeNull()
+  })
+
+  it('250. handles .ts extension', () => {
+    const res = runRaw(`Fn(() => a + b)`, 'shader.ts')
+    expect(res).not.toBeNull()
+    expect(res.code).toContain('a.add(b)')
+  })
+
+  it('251. handles .tsx extension', () => {
+    const res = runRaw(`Fn(() => a + b)`, 'shader.tsx')
+    expect(res).not.toBeNull()
+    expect(res.code).toContain('a.add(b)')
+  })
+})
+
+describe('Idempotency', () => {
+  it('252. arithmetic transform is idempotent (second pass is null)', () => {
+    const first = runRaw(`Fn(() => a + b)`)
+    expect(first).not.toBeNull()
+    const second = runRaw(first.code)
+    expect(second).toBeNull()
+  })
+
+  it('253. auto-import transform is idempotent', () => {
+    const first = runRaw(`import { Fn } from 'three/tsl'
+Fn(() => 1 - a)`)
+    expect(first).not.toBeNull()
+    expect(first.code).toContain('float')
+    const second = runRaw(first.code)
+    expect(second).toBeNull()
+  })
+
+  it('254. loop transform is idempotent', () => {
+    const first = runRaw(`Fn(() => {
+      //@tsl
+      for (let i = 0; i < 10; i++) { sum += value }
+    })`)
+    expect(first).not.toBeNull()
+    expect(first.code).toContain('Loop(')
+    const second = runRaw(first.code)
+    expect(second).toBeNull()
+  })
+})
+
+describe('TypeScript constructs', () => {
+  it('255. type annotation preserved through transform', () => {
+    const out = run(`Fn(() => {
+      const x: number = a + b
+      return x
+    })`, 'shader.ts')
+    expect(out).toContain('a.add(b)')
+  })
+
+  it('256. as cast operand is transformed', () => {
+    const out = run(`Fn(() => (a as any) + b)`, 'shader.ts')
+    expect(out).toContain('.add(b)')
+  })
+
+  it('257. as const on arithmetic result preserved', () => {
+    const out = run(`Fn(() => {
+      const v = (a + b) as const
+      return v
+    })`, 'shader.ts')
+    expect(out).toContain('a.add(b)')
+  })
+
+  it('258. non-null assertion preserved', () => {
+    const out = run(`Fn(() => a! + b)`, 'shader.ts')
+    expect(out).toContain('.add(b)')
+  })
+})
+
+describe('Optional chaining and nullish coalescing', () => {
+  it('259. optional chain property participates in arithmetic', () => {
+    const out = run(`Fn(() => a?.b + c)`)
+    expect(out).toContain('.add(c)')
+  })
+
+  it('260. nullish coalescing RHS arithmetic transforms', () => {
+    const out = run(`Fn(() => x ?? (a + b))`)
+    expect(out).toContain('a.add(b)')
+    expect(out).toContain('??')
+  })
+
+  it('261. chained nullish with arithmetic result', () => {
+    const out = run(`Fn(() => (a?.b ?? c).add(d))`)
+    expect(out).toContain('??')
+  })
+
+  it('262. deep optional chain with arithmetic', () => {
+    const out = run(`Fn(() => a?.b?.c + d)`)
+    expect(out).toContain('.add(d)')
+  })
+})
+
+describe('Source map output', () => {
+  it('263. transform result includes a source map', () => {
+    const res = runRaw(`Fn(() => a + b)`)
+    expect(res).not.toBeNull()
+    expect(res.map).toBeTruthy()
+    expect(res.map.mappings).toBeTruthy()
+  })
+
+  it('264. source map has correct source file reference', () => {
+    const res = runRaw(`Fn(() => a + b)`, 'myShader.js')
+    expect(res).not.toBeNull()
+    expect(res.map).toBeTruthy()
+  })
+})
+
+describe('Auto-import edge cases', () => {
+  it('265. does not duplicate when float already imported as alias', () => {
+    const out = run(`import { Fn, float as f } from 'three/tsl'
+Fn(() => 1 - a)`)
+    const floatImports = (out.match(/\bfloat\b/g) || []).length
+    expect(out).toContain('float(1).sub(a)')
+    expect(floatImports).toBeGreaterThan(0)
+  })
+
+  it('266. does not add duplicate when namespace import exists', () => {
+    const out = run(`import * as TSL from 'three/tsl'
+TSL.Fn(() => 1 - a)`)
+    expect(out).not.toMatch(/import\s*\{\s*float/)
+  })
+
+  it('267. respects importSource option', () => {
+    const out = TSLOperatorPlugin({ logs: false, importSource: 'three/webgpu' })
+      .transform(`Fn(() => 1 - a)`, 'test.js').code
+    expect(out).toMatch(/import[^;]*float[^;]*from\s+['"]three\/webgpu['"]/)
+  })
+
+  it('268. autoImportMissingTSL=false skips injection', () => {
+    const out = TSLOperatorPlugin({ logs: false, autoImportMissingTSL: false })
+      .transform(`Fn(() => 1 - a)`, 'test.js').code
+    expect(out).not.toMatch(/^import[^;]*float/m)
+    expect(out).toContain('float(1).sub(a)')
+  })
+})
+
+describe('Multi-line directive scoping', () => {
+  it('269. //@tsl directive above multi-line expression applies', () => {
+    const out = run(`Fn(() => {
+      //@tsl
+      const r = a > b
+        && c < d
+      return r
+    })`)
+    expect(out).toContain('.and(')
+  })
+
+  it('270. //@js inside block preserves single line only', () => {
+    const out = run(`Fn(() => {
+      //@js
+      const a = x + y
+      const b = x + y
+      return b
+    })`)
+    expect(out).toMatch(/const a\s*=\s*x\s*\+\s*y/)
+    expect(out).toContain('x.add(y)')
+  })
+
+  it('271. Fn-level //@tsl propagates to nested block statements', () => {
+    const out = run(`//@tsl
+Fn(() => {
+  if (a > b) {
+    x = y + z
+  }
+})`)
+    expect(out).toContain('.greaterThan(')
+    expect(out).toContain('y.add(z)')
+  })
+})

@@ -2,16 +2,17 @@
 
 ![Experimental](https://img.shields.io/badge/Experimental-true-orange)
 
-A Vite plugin to let you use `+`, `-`, `*`, `/`, `%`, `+=`, `-=`, `*=`, `/=`, `%=`, `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==`, `&&`, `||`, `!`  with TSL Node in your Threejs project making the code more consise and easy to write, modify & read.
+A Vite plugin to let you use `+`, `-`, `*`, `/`, `%`, `**`, `+=`, `-=`, `*=`, `/=`, `%=`, `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==`, `&&`, `||`, `!`  with TSL Node in your Threejs project making the code more consise and easy to write, modify & read.
 
 ### Supported Operators
 
 | Category | Operators |
 |----------|-----------|
-| Arithmetic | `+`, `-`, `*`, `/`, `%` |
+| Arithmetic | `+`, `-`, `*`, `/`, `%`, `**` |
 | Assignment | `+=`, `-=`, `*=`, `/=`, `%=` |
 | Comparison | `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==` |
 | Logical | `&&`, `\|\|`, `!` |
+| Opt-in (`//@tsl` only) | `i++`, `--i` → `.addAssign(1)` / `.subAssign(1)`; `a ? b : c` → `select(a, b, c)` |
 
 ### Example
 

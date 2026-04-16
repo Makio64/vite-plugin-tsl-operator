@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-04-16
+
+### Added
+- **Power operator (`**`)**: `a ** b` transforms to `a.pow(b)` inside `Fn()` blocks. Pure-numeric exponents are preserved.
+- **Update expressions (`++`, `--`) under `//@tsl`**: `i++` / `--i` transform to `i.addAssign(1)` / `i.subAssign(1)` only when the statement is annotated with `//@tsl`. Plain JS iterators (`let i = 0; i++`) are preserved.
+- **Ternary `a ? b : c` to `select(a, b, c)` under `//@tsl`**: opt-in conditional-to-select transformation. `select` is added to the auto-import set.
+- **TypeScript type-wrapper transparency**: `TSAsExpression`, `TSTypeAssertion`, `TSSatisfiesExpression`, `TSNonNullExpression` are now recursed through, so `(a + b) as const` correctly transforms the inner arithmetic.
+- **Source maps**: plugin now returns a proper source map via Babel's `sourceMaps: true` + `sourceFileName`.
+
+### Improved
+- **Performance**: `do...while` `//@tsl` transform no longer double-traverses the body (one transform, one cloneNode of the result). Redundant `cloneNode` calls in `for`/`while` TSL-loop transforms were dropped.
+- **Parser plugin gating**: `typescript` / `jsx` parser plugins are now enabled only for the matching file extension, cutting parse overhead on plain `.js` files.
+- **Early exit**: transforms now also bail when no arithmetic/comparison/logical operator is present in the source.
+- Large-scenario benchmark improved ~10% end-to-end (pre-sourcemap); net improvement ~5% after enabling source maps.
+
+### Refactored
+- Extracted `applyDirective(directive, current)` helper to centralize the `//@tsl` / `//@js` override logic used in `transformExpression` and `transformBody`.
+- Added JSDoc on the 5 top-level functions (`isPureNumeric`, `containsTSLOperation`, `transformExpression`, `transformBody`, `TSLOperatorPlugin`).
+
+### Tests
+- 301 unit tests (up from 261).
+- New coverage: Vite-style IDs (`?raw`, `#frag`), idempotency, TypeScript constructs, optional chaining / nullish coalescing, source map output, auto-import edge cases (aliased, namespace, custom `importSource`, `autoImportMissingTSL: false`), multi-line directive scoping, and all new operators.
+
 ## [1.8.2] - 2026-02-21
 
 ### Fixed
