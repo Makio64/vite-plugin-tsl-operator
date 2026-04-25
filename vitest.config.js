@@ -9,7 +9,7 @@ export default defineConfig({
       {
         plugins: [
           // Apply the TSL operator plugin to transform test code
-          TSLOperatorPlugin({ logs: true }),
+          TSLOperatorPlugin({ logs: false }),
         ],
         test: {
           name: 'unit',
@@ -21,7 +21,7 @@ export default defineConfig({
       {
         plugins: [
           // Apply the TSL operator plugin to transform test code
-          TSLOperatorPlugin({ logs: true }),
+          TSLOperatorPlugin({ logs: false }),
         ],
         test: {
           name: 'browser',
@@ -47,5 +47,8 @@ export default defineConfig({
         },
       },
     ],
+  },
+  optimizeDeps: {
+    include: ['three', 'three/webgpu', 'three/tsl'],
   },
 })

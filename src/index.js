@@ -884,14 +884,78 @@ const parserPluginsByExt = {
   tsx: ['jsx', 'typescript', ...baseParserPlugins]
 }
 
-const operatorProbe = /[-+*/%]|[<>!=]=?|&&|\|\||\*\*|\+\+|--/
+const hasOperatorCandidate = code => {
+  let quote = null
+  let escaped = false
+  let lineComment = false
+  let blockComment = false
+
+  for (let i = 0; i < code.length; i++) {
+    const ch = code[i]
+    const next = code[i + 1]
+    const prev = code[i - 1]
+
+    if (lineComment) {
+      if (ch === '\n' || ch === '\r') lineComment = false
+      continue
+    }
+
+    if (blockComment) {
+      if (ch === '*' && next === '/') {
+        blockComment = false
+        i++
+      }
+      continue
+    }
+
+    if (quote) {
+      if (escaped) {
+        escaped = false
+      } else if (ch === '\\') {
+        escaped = true
+      } else if (ch === quote) {
+        quote = null
+      }
+      continue
+    }
+
+    if (ch === '\'' || ch === '"') {
+      quote = ch
+      continue
+    }
+
+    if (ch === '/' && next === '/') {
+      lineComment = true
+      i++
+      continue
+    }
+
+    if (ch === '/' && next === '*') {
+      blockComment = true
+      i++
+      continue
+    }
+
+    if (ch === '=') {
+      if (next === '=') return true
+      continue
+    }
+
+    if (ch === '>' && prev !== '=') return true
+    if (ch === '<' || ch === '!' || ch === '+' || ch === '*' || ch === '/' || ch === '%' || ch === '?') return true
+    if (ch === '-' && next !== '>') return true
+    if ((ch === '&' && next === '&') || (ch === '|' && next === '|')) return true
+  }
+
+  return false
+}
 
 /**
  * Vite plugin: transforms JS operators inside Fn() blocks to TSL method calls.
  * Options: logs (true|false|string|string[]|RegExp), autoImportMissingTSL (bool),
  * importSource (string — target for auto-injected imports, default 'three/tsl').
  */
-export default function TSLOperatorPlugin({logs = true, autoImportMissingTSL = true, importSource = 'three/tsl'} = {}) {
+export default function TSLOperatorPlugin({logs = false, autoImportMissingTSL = true, importSource = 'three/tsl'} = {}) {
   return {
     name: 'tsl-operator-plugin',
     transform(code, id) {
@@ -899,7 +963,7 @@ export default function TSLOperatorPlugin({logs = true, autoImportMissingTSL = t
       const extMatch = cleanId && cleanId.match(/\.(jsx?|tsx?)$/)
       if(!extMatch || cleanId.includes('node_modules')) return null
       if(!code.includes('Fn(')) return null
-      if(!operatorProbe.test(code)) return null
+      if(!hasOperatorCandidate(code)) return null
 
       const filename = path.basename(cleanId)
       const ext = extMatch[1]

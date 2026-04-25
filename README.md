@@ -2,173 +2,194 @@
 
 ![Experimental](https://img.shields.io/badge/Experimental-true-orange)
 
-A Vite plugin to let you use `+`, `-`, `*`, `/`, `%`, `**`, `+=`, `-=`, `*=`, `/=`, `%=`, `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==`, `&&`, `||`, `!`  with TSL Node in your Threejs project making the code more consise and easy to write, modify & read.
-
-### Supported Operators
-
-| Category | Operators |
-|----------|-----------|
-| Arithmetic | `+`, `-`, `*`, `/`, `%`, `**` |
-| Assignment | `+=`, `-=`, `*=`, `/=`, `%=` |
-| Comparison | `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==` |
-| Logical | `&&`, `\|\|`, `!` |
-| Opt-in (`//@tsl` only) | `i++`, `--i` → `.addAssign(1)` / `.subAssign(1)`; `a ? b : c` → `select(a, b, c)` |
-
-### Example
-
-Instead of:
+Write Three.js TSL `Fn()` code with normal JavaScript operators. The plugin rewrites those operators to TSL node methods during Vite transforms, so shader code stays readable while the generated code stays compatible with TSL.
 
 ```js
-Fn(()=>{
-	let x = float(1).sub(alpha.mul(color.r))
-	x = x.mul(4)
-	return x
+import { Fn, float } from 'three/tsl'
+
+const shader = Fn(() => {
+  const strength = float(0.8)
+  return 1 - strength * color.r
 })
 ```
 
-You can now write : 
+becomes:
+
 ```js
-Fn(()=>{
-	let x = 1 - ( alpha * color.r )
-	x *= 4
-	return x
+import { Fn, float } from 'three/tsl'
+
+const shader = Fn(() => {
+  const strength = float(0.8)
+  return float(1).sub(strength.mul(color.r))
 })
 ```
 
-- [Installation](#installation)
-- [Usage](#usage)
-- [Options](#options)
-- [How it works](#how-it-works)
-- [TSL Loop Transformation](#tsl-loop-transformation)
-- [About TSL](#about-tsl)
-- [License](#license)
-
-## Installation 
+## Install
 
 ```bash
-pnpm i vite-plugin-tsl-operator
+pnpm add vite-plugin-tsl-operator
 ```
 
-## Usage 
+```bash
+npm install vite-plugin-tsl-operator
+```
 
-Add the plugin to your Vite config :
+```bash
+yarn add vite-plugin-tsl-operator
+```
+
+## Setup
+
+Add the plugin to `vite.config.js` before plugins that should see the transformed TSL code.
+
 ```js
 import { defineConfig } from 'vite'
 import tslOperatorPlugin from 'vite-plugin-tsl-operator'
 
 export default defineConfig({
-	//...
   plugins: [
-		tslOperatorPlugin({logs:false})
-		//.. other plugins
-	]
+    tslOperatorPlugin(),
+  ],
 })
 ```
 
-## Options
+## Supported Syntax
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `logs` | `false` | Log transformations to terminal |
-| `autoImportMissingTSL` | `true` | Automatically add missing TSL imports (`float`, `int`, `Loop`) |
-| `importSource` | `'three/tsl'` | Import source for auto-imports |
+| Category | Input | Output |
+| --- | --- | --- |
+| Arithmetic | `a + b` | `a.add(b)` |
+| Arithmetic | `a - b` | `a.sub(b)` |
+| Arithmetic | `a * b` | `a.mul(b)` |
+| Arithmetic | `a / b` | `a.div(b)` |
+| Arithmetic | `a % b` | `a.mod(b)` |
+| Arithmetic | `a ** b` | `a.pow(b)` |
+| Assignment | `a += b` | `a.addAssign(b)` |
+| Assignment | `a -= b` | `a.subAssign(b)` |
+| Assignment | `a *= b` | `a.mulAssign(b)` |
+| Assignment | `a /= b` | `a.divAssign(b)` |
+| Assignment | `a %= b` | `a.modAssign(b)` |
+| Comparison | `a > b` | `a.greaterThan(b)` |
+| Comparison | `a < b` | `a.lessThan(b)` |
+| Comparison | `a >= b` | `a.greaterThanEqual(b)` |
+| Comparison | `a <= b` | `a.lessThanEqual(b)` |
+| Comparison | `a == b`, `a === b` | `a.equal(b)` |
+| Comparison | `a != b`, `a !== b` | `a.notEqual(b)` |
+| Logical | `a && b` | `a.and(b)` |
+| Logical | `a \|\| b` | `a.or(b)` |
+| Logical | `!a` | `a.not()` |
+| Opt-in with `//@tsl` | `a ? b : c` | `select(a, b, c)` |
+| Opt-in with `//@tsl` | `i++`, `--i` | `i.addAssign(1)`, `i.subAssign(1)` |
 
-### Logging
+## Where It Runs
 
-```js
-tslOperatorPlugin({ logs: true })                     // log all files
-tslOperatorPlugin({ logs: false })                    // no logging (default)
-tslOperatorPlugin({ logs: "MyShader.js" })            // log only this file
-tslOperatorPlugin({ logs: ["File1.js", "File2.js"] }) // log only these files
-tslOperatorPlugin({ logs: /shader/i })                // log files matching regex
-```
-
-<img width="593" alt="Screenshot 2025-02-08 at 12 55 26" src="https://github.com/user-attachments/assets/20861ec1-6c75-4d35-87da-61e3ed8a2ba9" />
-
-### Auto Import
-
-The plugin automatically adds missing imports when transformations require TSL types like `float`, `int`, or `Loop`.
-
-```js
-// Before transformation (no float import)
-import { Fn, uv } from 'three/tsl'
-Fn(() => 1 - uv())
-
-// After transformation (float automatically added)
-import { Fn, uv, float } from 'three/tsl'
-Fn(() => float(1).sub(uv()))
-```
-
-To disable auto-import or use a different import source:
+Only code inside direct `Fn(() => ...)` calls is transformed. Regular application code, helper functions outside `Fn()`, files in `node_modules`, and non-JS/TS files are ignored.
 
 ```js
-tslOperatorPlugin({ autoImportMissingTSL: false })              // disable auto-import
-tslOperatorPlugin({ importSource: 'three/webgpu' })   // use different source
-```
+const value = a + b // unchanged
 
-Note : The transformation happened only when the file is call by the client or during build ( Vite optimization )
-
-## How it works
-
-The plugin walks your source and selectively transforms code.
-
-It **only** looks inside `Fn(() => { ... })` blocks. Code outside is untouched.
-
-```js
-const opacity = uniform(0) // Ignored (Plain JS)
-
-Fn(()=>{
-  return opacity * 3 // Transformed to opacity.mul(3)
+Fn(() => {
+  return a + b // a.add(b)
 })
 ```
 
-> **Note**: Files inside `node_modules` are excluded.
+The plugin also exits early when a file does not contain `Fn(` or any candidate operator, so most unrelated files pay almost no transform cost.
 
-### Smart Detection
+## Smart Defaults
 
-The plugin automatically detects when to transform operators.
+The transform is intentionally conservative.
 
-It uses **context-aware logic** to decide if an expression should be TSL or JavaScript.
+Pure numeric math stays JavaScript:
 
-**Pure numeric expressions are preserved:**
 ```js
 Fn(() => {
   const radius = 0.08
-  const halfRadius = radius * 0.5      // Stays as-is (pure JS math)
-  return smoothstep(radius, halfRadius, dist)  // dist is TSL, but radius/halfRadius are numbers
+  const halfRadius = radius * 0.5 // unchanged
+  return smoothstep(radius, halfRadius, dist)
 })
 ```
 
-Variables initialized with numeric literals are recognized as plain JavaScript numbers and won't be transformed when used in arithmetic with other numbers.
+`Math.*` expressions stay JavaScript:
 
-### Manual Overrides
+```js
+Fn(() => {
+  return 1 - Math.PI / 2 // float(1).sub(Math.PI / 2)
+})
+```
 
-If you have an edge case which is not cover by the smart-detection you can use `//@tsl` or `//@js` to force the behavior.
+Plain JavaScript control flow stays JavaScript unless you opt in:
 
-- **`//@tsl`** : Force transformation (useful for custom functions or callbacks).
-- **`//@js`** : Disable transformation (keep as plain JS).
+```js
+Fn(() => {
+  if (enabled && !debug) {
+    return color * opacity // color.mul(opacity)
+  }
+})
+```
 
-Directives apply to the **next line** or the **entire Fn** (if placed at the top).
+## Directives
+
+Use comments when the automatic context detection needs help.
+
+`//@tsl` forces TSL conversion for the next statement, or for an entire `Fn()` when placed immediately before it:
 
 ```js
 //@tsl
 Fn(() => {
-  customNode( a > b ) // → customNode( a.greaterThan(b) )
-})
-
-Fn(() => {
-  //@js
-  const test = x + y  // will not transform
-
-  const test = x + y  // will transform to x.add(y)
+  if (x > y) {
+    return a
+  }
 })
 ```
 
-### TSL Loop Transformation
+`//@js` keeps the next statement as JavaScript:
 
-Use `//@tsl` before `for`, `while`, or `do...while` loops to transform them into TSL `Loop()` constructs.
+```js
+Fn(() => {
+  //@js
+  const debugValue = count / 2
 
-**For Loop:**
+  return color / 2 // color.div(2)
+})
+```
+
+## Auto Imports
+
+By default, the plugin adds missing TSL imports when a transform introduces wrappers such as `float`, `int`, `Loop`, or `select`.
+
+```js
+import { Fn, uv } from 'three/tsl'
+
+Fn(() => 1 - uv())
+```
+
+becomes:
+
+```js
+import { Fn, uv, float } from 'three/tsl'
+
+Fn(() => float(1).sub(uv()))
+```
+
+The plugin adds to existing imports from `three/tsl`, `three/webgpu`, or `three/src/nodes/...`. If no TSL import exists, it creates one using `importSource`.
+
+## Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `logs` | `false` | Log before/after transform snippets. Accepts `true`, `false`, a filename, an array of filenames, or a `RegExp`. |
+| `autoImportMissingTSL` | `true` | Add missing TSL imports required by generated code. |
+| `importSource` | `'three/tsl'` | Source used when creating a new import declaration. |
+
+```js
+tslOperatorPlugin({ logs: /shader/i })
+tslOperatorPlugin({ autoImportMissingTSL: false })
+tslOperatorPlugin({ importSource: 'three/webgpu' })
+```
+
+## TSL Loops
+
+Annotate loops with `//@tsl` to turn them into `Loop()` calls.
+
 ```js
 Fn(() => {
   //@tsl
@@ -176,43 +197,48 @@ Fn(() => {
     sum += value
   }
 })
-// Transforms to:
-// Loop({ start: int(0), end: int(10), type: "int", condition: "<", name: "i" }, ({ i }) => {
-//   sum.addAssign(value)
-// })
 ```
 
-**While Loop:**
+becomes:
+
 ```js
 Fn(() => {
-  //@tsl
-  while (x < 10) {
-    x += 1
-  }
+  Loop({ start: int(0), end: int(10), type: 'int', condition: '<', name: 'i' }, ({ i }) => {
+    sum.addAssign(value)
+  })
 })
-// Transforms to:
-// Loop(x.lessThan(10), () => {
-//   x.addAssign(1)
-// })
 ```
 
-**Do-While Loop:**
+`while` and `do...while` are also supported with `//@tsl`. Loop bounds are wrapped with `int()` or `float()` based on the values used.
+
+## Runtime Coverage
+
+The repository includes two test layers:
+
+- Unit transform tests for operator output, idempotency, TypeScript syntax, source maps, directives, and auto-import behavior.
+- Browser runtime tests that compile transformed TSL shaders through Three.js WebGL/WebGPU paths.
+
+```bash
+pnpm test
+pnpm test:unit
+pnpm test:browser
+```
+
+## Related Plugin
+
+For production builds, pair this with [`vite-plugin-tsl-optimizer`](https://github.com/makio64/vite-plugin-tsl-optimizer). Run this plugin first, then the optimizer to simplify generated chains such as `.add(0)`, `.mul(1)`, and redundant wrappers.
+
 ```js
-Fn(() => {
-  //@tsl
-  do {
-    x += 1
-  } while (x < 10)
-})
-// Transforms to an IIFE (executes body once) + Loop
+plugins: [
+  tslOperatorPlugin(),
+  tslOptimizerPlugin(),
+]
 ```
-
-> **Note**: The plugin automatically infers `int` or `float` type based on the loop values.
 
 ## About TSL
 
-Official wiki : [Three.js-Shading-Language](https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language)
+TSL is Three.js Shading Language. See the official [Three.js TSL wiki](https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language).
 
-### License
+## License
 
 MIT

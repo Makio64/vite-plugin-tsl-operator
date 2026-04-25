@@ -102,7 +102,7 @@ describe.each(backends)('TSL Runtime - $name', ({ name: backendName, forceWebGL 
 
     it('transforms assignment operators inside Fn()', () => {
       const makeNode = Fn(() => {
-        const a = float(0.25).toVar()
+        let a = float(0.25).toVar()
         a += 0.5
         return a
       })
@@ -173,7 +173,7 @@ describe.each(backends)('TSL Runtime - $name', ({ name: backendName, forceWebGL 
   describe('Assignment Operators', () => {
     it('addAssign: .addAssign()', async () => {
       const shader = Fn(() => {
-        const a = float(0.3).toVar()
+        let a = float(0.3).toVar()
         const b = float(0.4)
         a += b
         return vec4(a, float(0.2), float(0.35), 1)
@@ -183,7 +183,7 @@ describe.each(backends)('TSL Runtime - $name', ({ name: backendName, forceWebGL 
 
     it('subAssign: .subAssign()', async () => {
       const shader = Fn(() => {
-        const a = float(0.9).toVar()
+        let a = float(0.9).toVar()
         a -= 0.2
         return vec4(a, float(0.35), float(0.3), 1)
       })
@@ -192,7 +192,7 @@ describe.each(backends)('TSL Runtime - $name', ({ name: backendName, forceWebGL 
 
     it('mulAssign: .mulAssign()', async () => {
       const shader = Fn(() => {
-        const a = float(0.5).toVar()
+        let a = float(0.5).toVar()
         a *= 1.5
         return vec4(float(0.2), a, float(0.35), 1)
       })
@@ -201,7 +201,7 @@ describe.each(backends)('TSL Runtime - $name', ({ name: backendName, forceWebGL 
 
     it('divAssign: .divAssign()', async () => {
       const shader = Fn(() => {
-        const a = float(0.8).toVar()
+        let a = float(0.8).toVar()
         a /= 2.0
         return vec4(float(0.5), a, float(0.2), 1)
       })

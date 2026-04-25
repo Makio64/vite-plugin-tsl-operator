@@ -2757,6 +2757,14 @@ Fn(() => {
     expect(out).toMatch(/import[^;]*select[^;]*from\s+['"]three\/tsl['"]/)
   })
 
+  it('244b. transforms plain ternary under //@tsl', () => {
+    const out = run(`Fn(() => {
+      //@tsl
+      return flag ? a : b
+    })`)
+    expect(out).toContain('select(flag, a, b)')
+  })
+
   it('245. ternary inside smoothstep stays as ternary (no //@tsl)', () => {
     const out = run(`Fn(() => smoothstep(0, 1, x > 0.5 ? a : b))`)
     expect(out).toContain('?')

@@ -1,9 +1,12 @@
 # Development files
 test/
+bench/
 .claude/
 pnpm-workspace.yaml
 pnpm-lock.yaml
 CLAUDE.md
+AGENT.md
+vitest.config.js
 
 # Git
 .git/
@@ -25,6 +28,7 @@ npm-debug.log*
 node_modules/
 
 # Build artifacts
+dist/
 stats.html
 .env
 .npmrc

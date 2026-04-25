@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0] - 2026-04-25
+
+### Added
+- Added `AGENT.md` with project structure, command, implementation, and release guidance for coding agents.
+- Added regression coverage for plain ternary `//@tsl` transforms such as `flag ? a : b`.
+
+### Changed
+- Rewrote the README to make installation, setup, supported operators, directives, auto-imports, loop transforms, testing, and related plugin usage clearer.
+- Bumped the package minor version to `1.10.0`.
+- Changed the plugin's default `logs` option to `false`, matching the documented default and reducing transform noise.
+
+### Improved
+- Replaced the broad operator preflight regex with a lightweight source scan that skips quoted strings, comments, and arrow `=>`, avoiding unnecessary Babel work for `Fn()` files without transformable operators.
+- Reduced Vitest browser startup noise by pre-including Three.js dependencies and disabling plugin transform logs in tests.
+- Updated runtime tests so assignment-operator examples are valid JavaScript before Vite applies the plugin transform.
+- Cleaned npm package contents so development-only files, ignored builds, benchmarks, and agent notes are not included in the published tarball.
+
 ## [1.9.0] - 2026-04-16
 
 ### Added
