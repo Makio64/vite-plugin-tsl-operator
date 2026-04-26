@@ -12,11 +12,20 @@
   },
   "keywords": [
     "tsl",
+    "three",
+    "three.js",
     "threejs",
+    "three-tsl",
+    "webgpu",
+    "shader",
+    "shader-nodes",
     "vite",
+    "vite-plugin",
     "plugin",
     "operators",
-    "transform"
+    "operator-overloading",
+    "transform",
+    "babel"
   ],
   "repository": "github:makio64/vite-plugin-tsl-operator",
   "author": "David Ronai | Makio64",

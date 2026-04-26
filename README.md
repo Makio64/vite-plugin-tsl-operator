@@ -2,7 +2,43 @@
 
 ![Experimental](https://img.shields.io/badge/Experimental-true-orange)
 
-Write Three.js TSL `Fn()` code with normal JavaScript operators. The plugin rewrites those operators to TSL node methods during Vite transforms, so shader code stays readable while the generated code stays compatible with TSL.
+Use normal JavaScript operators like `+`, `-`, `*`, `/`, `%`, `**`, `+=`, `>`, `&&`, and `!` directly inside Three.js TSL `Fn()` blocks.
+
+`vite-plugin-tsl-operator` is a plug-and-play Vite plugin for Three.js Shading Language (TSL), WebGPU, and shader node projects. It rewrites readable operator syntax to TSL node methods during Vite transforms, so you can write shader logic naturally without hand-chaining `.add()`, `.mul()`, `.greaterThan()`, and friends.
+
+## Operators At A Glance
+
+| Category | Operators |
+| --- | --- |
+| Arithmetic | `+`, `-`, `*`, `/`, `%`, `**` |
+| Assignment | `+=`, `-=`, `*=`, `/=`, `%=` |
+| Comparison | `>`, `<`, `>=`, `<=`, `==`, `===`, `!=`, `!==` |
+| Logical | `&&`, `\|\|`, `!` |
+| Opt-in with `//@tsl` | `i++`, `--i`, `a ? b : c` |
+
+## Quick Example
+
+Instead of writing chained TSL methods:
+
+```js
+Fn(() => {
+  let x = float(1).sub(alpha.mul(color.r))
+  x = x.mul(4)
+  return x
+})
+```
+
+you can write normal JavaScript-style math:
+
+```js
+Fn(() => {
+  let x = 1 - alpha * color.r
+  x *= 4
+  return x
+})
+```
+
+The plugin transforms it for you.
 
 ```js
 import { Fn, float } from 'three/tsl'
@@ -24,7 +60,7 @@ const shader = Fn(() => {
 })
 ```
 
-## Install
+## Install And Use
 
 ```bash
 pnpm add vite-plugin-tsl-operator
@@ -38,9 +74,7 @@ npm install vite-plugin-tsl-operator
 yarn add vite-plugin-tsl-operator
 ```
 
-## Setup
-
-Add the plugin to `vite.config.js` before plugins that should see the transformed TSL code.
+Add it to `vite.config.js` and start writing operators inside `Fn()` blocks. No Babel config, no runtime setup, and no code changes outside your Vite plugins array.
 
 ```js
 import { defineConfig } from 'vite'
@@ -53,7 +87,7 @@ export default defineConfig({
 })
 ```
 
-## Supported Syntax
+## Transform Reference
 
 | Category | Input | Output |
 | --- | --- | --- |
@@ -237,7 +271,7 @@ plugins: [
 
 ## About TSL
 
-TSL is Three.js Shading Language. See the official [Three.js TSL wiki](https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language).
+TSL is Three.js Shading Language. Start with the official [Three.js TSL documentation](https://threejs.org/docs/TSL.html), and use the [TSL reference page](https://threejs.org/docs/pages/TSL.html) for available nodes, helpers, and properties.
 
 ## License
 

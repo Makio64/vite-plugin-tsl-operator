@@ -10,8 +10,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Rewrote the README to make installation, setup, supported operators, directives, auto-imports, loop transforms, testing, and related plugin usage clearer.
+- Restored a direct operator-first README introduction with category overview and plug-and-play setup language.
+- Updated the TSL resource links from the old wiki to the official Three.js TSL documentation and reference pages.
 - Bumped the package minor version to `1.10.0`.
 - Changed the plugin's default `logs` option to `false`, matching the documented default and reducing transform noise.
+- Expanded npm keywords for better discovery across Three.js, TSL, WebGPU, shader nodes, and Vite plugin searches.
 
 ### Improved
 - Replaced the broad operator preflight regex with a lightweight source scan that skips quoted strings, comments, and arrow `=>`, avoiding unnecessary Babel work for `Fn()` files without transformable operators.
